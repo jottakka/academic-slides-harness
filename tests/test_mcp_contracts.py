@@ -8,8 +8,10 @@ from academic_slides_harness.mcp.server import (
     create_run,
     ingest_source,
     list_visual_artifacts,
+    plan_deck,
     render_beamer,
     render_zoom_crop,
+    validate_run,
 )
 
 
@@ -83,6 +85,25 @@ def test_render_beamer_returns_tex_hash(tmp_path: Path) -> None:
     assert result.structured_content["sha256"]
 
 
+def test_render_beamer_accepts_plan_deck_slide_shape(tmp_path: Path) -> None:
+    plan = plan_deck(
+        title="Chainable Deck",
+        excerpts=["First deterministic finding. Second reproducible finding. Third implication."],
+        max_slides=1,
+    )
+
+    result = render_beamer(
+        output_dir=str(tmp_path),
+        title=plan.structured_content["title"],
+        slides=plan.structured_content["slides"],
+    )
+
+    tex = Path(result.structured_content["deck_tex"]).read_text(encoding="utf-8")
+    assert result.ok is True
+    assert "\\begin{frame}{Chainable Deck: 1}" in tex
+    assert "\\item First deterministic finding" in tex
+
+
 def test_render_beamer_returns_typed_error_for_bad_slide_shape(tmp_path: Path) -> None:
     result = render_beamer(
         output_dir=str(tmp_path),
@@ -92,6 +113,23 @@ def test_render_beamer_returns_typed_error_for_bad_slide_shape(tmp_path: Path) -
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "invalid_slide"
+
+
+def test_validate_run_returns_typed_error_for_missing_manifest(tmp_path: Path) -> None:
+    run_dir = tmp_path / "incomplete-run"
+    (run_dir / "screenshots").mkdir(parents=True)
+
+    result = validate_run(run_dir=str(run_dir))
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "validation_failed"
+    details = result.structured_content["error"]["details"]
+    assert details["ok"] is False
+    assert details["checks"] == {
+        "run_dir_exists": True,
+        "screenshots_dir_exists": True,
+        "manifest_exists": False,
+    }
 
 
 def test_list_visual_artifacts_returns_dimensions_and_hash(tmp_path: Path) -> None:
@@ -107,6 +145,22 @@ def test_list_visual_artifacts_returns_dimensions_and_hash(tmp_path: Path) -> No
     assert artifact["width"] == 12
     assert artifact["height"] == 8
     assert artifact["sha256"]
+
+
+def test_list_visual_artifacts_restores_harness_metadata_from_filename(tmp_path: Path) -> None:
+    image_path = tmp_path / "deck_pdf-p2-crop-144dpi-z2.png"
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 20, 10), False)
+    pixmap.clear_with(255)
+    pixmap.save(image_path)
+
+    result = list_visual_artifacts(screenshots_dir=str(tmp_path))
+
+    artifact = result.structured_content["artifacts"][0]
+    assert artifact["target"] == "deck_pdf"
+    assert artifact["page"] == 2
+    assert artifact["dpi"] == 144
+    assert artifact["scale"] == 2.0
+    assert artifact["zoom"] == 2.0
 
 
 def test_render_zoom_crop_returns_typed_error_for_invalid_target(tmp_path: Path) -> None:

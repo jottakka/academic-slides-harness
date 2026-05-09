@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Literal
 
@@ -30,18 +31,18 @@ def render_pdf_pages(
             )
             output_path = output_dir / f"{target}-p{page_number}-{resolved.dpi}dpi.png"
             pixmap.save(output_path)
-            artifacts.append(
-                ScreenshotArtifact.from_file(
-                    path=output_path,
-                    target=target,
-                    page=page_number,
-                    width=pixmap.width,
-                    height=pixmap.height,
-                    dpi=resolved.dpi,
-                    scale=resolved.scale,
-                    zoom=resolved.zoom,
-                )
+            artifact = ScreenshotArtifact.from_file(
+                path=output_path,
+                target=target,
+                page=page_number,
+                width=pixmap.width,
+                height=pixmap.height,
+                dpi=resolved.dpi,
+                scale=resolved.scale,
+                zoom=resolved.zoom,
             )
+            _write_sidecar(artifact)
+            artifacts.append(artifact)
     return artifacts
 
 
@@ -68,7 +69,7 @@ def render_zoom_crop(
         )
         output_path = output_dir / f"{target}-p{page}-crop-{resolved.dpi}dpi-z{resolved.zoom:g}.png"
         pixmap.save(output_path)
-        return ScreenshotArtifact.from_file(
+        artifact = ScreenshotArtifact.from_file(
             path=output_path,
             target=target,
             page=page,
@@ -78,6 +79,8 @@ def render_zoom_crop(
             scale=resolved.scale,
             zoom=resolved.zoom,
         )
+        _write_sidecar(artifact)
+        return artifact
 
 
 def _resolve_crop(crop: CropBox, page_rect: fitz.Rect) -> fitz.Rect:
@@ -88,3 +91,11 @@ def _resolve_crop(crop: CropBox, page_rect: fitz.Rect) -> fitz.Rect:
         y1 = y0 + crop.height * page_rect.height
         return fitz.Rect(x0, y0, x1, y1)
     return fitz.Rect(crop.x, crop.y, crop.x + crop.width, crop.y + crop.height)
+
+
+def _write_sidecar(artifact: ScreenshotArtifact) -> None:
+    sidecar_path = artifact.path.with_suffix(f"{artifact.path.suffix}.json")
+    sidecar_path.write_text(
+        json.dumps(artifact.to_structured_content(), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )

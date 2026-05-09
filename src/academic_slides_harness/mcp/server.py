@@ -1,3 +1,5 @@
+import json
+import re
 import sys
 from pathlib import Path
 from typing import Annotated, Any
@@ -86,27 +88,27 @@ def render_beamer(
     *,
     output_dir: Annotated[str, "Directory where deck.tex should be written."],
     title: Annotated[str, "Deck title."],
-    slides: Annotated[list[dict[str, Any]], "Slide objects with title and bullets fields."],
+    slides: Annotated[
+        list[dict[str, Any]], "Slide objects with title and bullets fields, or body fields."
+    ],
 ) -> ToolResult:
     """Render a Beamer deck.tex file from structured slide data."""
     parsed_slides: list[BeamerSlide] = []
     for index, slide in enumerate(slides, start=1):
-        if "title" not in slide or "bullets" not in slide:
+        if "title" not in slide:
             return ToolResult.error(
                 kind="invalid_slide",
-                message=f"Slide {index} must include title and bullets.",
+                message=f"Slide {index} must include title.",
                 details={"slide_index": index},
             )
-        bullets = slide["bullets"]
-        if not isinstance(bullets, list):
+        bullets = _slide_bullets(slide)
+        if bullets is None:
             return ToolResult.error(
                 kind="invalid_slide",
-                message=f"Slide {index} bullets must be a list.",
+                message=f"Slide {index} must include bullets or body.",
                 details={"slide_index": index},
             )
-        parsed_slides.append(
-            BeamerSlide(title=str(slide["title"]), bullets=[str(item) for item in bullets])
-        )
+        parsed_slides.append(BeamerSlide(title=str(slide["title"]), bullets=bullets))
     deck = BeamerDeck(
         title=title,
         slides=parsed_slides,
@@ -136,6 +138,12 @@ def validate_run(
         "screenshots_dir_exists": (path / "screenshots").exists(),
         "manifest_exists": (path / "manifest.json").exists(),
     }
+    if not all(checks.values()):
+        return ToolResult.error(
+            kind="validation_failed",
+            message="Required run validation checks failed.",
+            details={"ok": False, "checks": checks},
+        )
     return ToolResult.success(
         message="Validation completed",
         structured_content={"ok": all(checks.values()), "checks": checks},
@@ -339,7 +347,8 @@ def _slug(title: str) -> str:
 def _png_metadata(path: Path) -> dict[str, Any]:
     with Image.open(path) as image:
         width, height = image.size
-    return {
+    metadata = _visual_metadata_from_sidecar(path) or _visual_metadata_from_filename(path)
+    result = {
         "path": str(path.resolve()),
         "width": width,
         "height": height,
@@ -350,6 +359,74 @@ def _png_metadata(path: Path) -> dict[str, Any]:
         "zoom": None,
         "target": None,
         "page": None,
+    }
+    result.update(metadata)
+    return result
+
+
+def _slide_bullets(slide: dict[str, Any]) -> list[str] | None:
+    if "bullets" in slide:
+        bullets = slide["bullets"]
+        if not isinstance(bullets, list):
+            return None
+        parsed = [str(item).strip() for item in bullets if str(item).strip()]
+        return parsed or None
+    if "body" not in slide:
+        return None
+    return _body_to_bullets(str(slide["body"]))
+
+
+def _body_to_bullets(body: str) -> list[str] | None:
+    lines = [re.sub(r"^[-*]\s*", "", line).strip() for line in body.splitlines() if line.strip()]
+    if len(lines) > 1:
+        return lines
+
+    sentence_parts = [
+        part.strip() for part in re.split(r"(?<=[.!?])\s+", body.strip()) if part.strip()
+    ]
+    if len(sentence_parts) > 1:
+        return sentence_parts
+
+    words = body.split()
+    if not words:
+        return None
+    chunk_size = 12
+    return [
+        " ".join(words[index : index + chunk_size]) for index in range(0, len(words), chunk_size)
+    ]
+
+
+def _visual_metadata_from_sidecar(path: Path) -> dict[str, Any] | None:
+    sidecar_path = path.with_suffix(f"{path.suffix}.json")
+    if not sidecar_path.exists():
+        return None
+    payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    resolution = payload.get("resolution", {})
+    return {
+        "dpi": resolution.get("dpi"),
+        "scale": resolution.get("scale"),
+        "zoom": payload.get("zoom"),
+        "target": payload.get("target"),
+        "page": payload.get("page"),
+    }
+
+
+def _visual_metadata_from_filename(path: Path) -> dict[str, Any]:
+    match = re.match(
+        r"^(?P<target>source_pdf|deck_pdf)-p(?P<page>\d+)"
+        r"(?:-crop)?-(?P<dpi>\d+)dpi(?:-z(?P<zoom>\d+(?:\.\d+)?))?\.png$",
+        path.name,
+    )
+    if match is None:
+        return {}
+    dpi = int(match.group("dpi"))
+    zoom = float(match.group("zoom") or 1.0)
+    return {
+        "dpi": dpi,
+        "scale": dpi / 72,
+        "zoom": zoom,
+        "target": match.group("target"),
+        "page": int(match.group("page")),
     }
 
 

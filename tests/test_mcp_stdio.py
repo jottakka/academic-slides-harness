@@ -26,9 +26,17 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
         )
 
     tool_names = {tool.name for tool in response.tools}
-    assert "AcademicSlidesHarness_CreateRun" in tool_names
-    assert "AcademicSlidesHarness_CompileRenderedBeamer" in tool_names
-    assert "AcademicSlidesHarness_RenderZoomCrop" in tool_names
-    assert "AcademicSlidesHarness_ListVisualArtifacts" in tool_names
+    assert tool_names == {
+        "AcademicSlidesHarness_CompileRenderedBeamer",
+        "AcademicSlidesHarness_CreateRun",
+        "AcademicSlidesHarness_IngestSource",
+        "AcademicSlidesHarness_ListVisualArtifacts",
+        "AcademicSlidesHarness_PlanDeck",
+        "AcademicSlidesHarness_RenderBeamer",
+        "AcademicSlidesHarness_RenderSlidePreview",
+        "AcademicSlidesHarness_RenderSourcePreview",
+        "AcademicSlidesHarness_RenderZoomCrop",
+        "AcademicSlidesHarness_ValidateRun",
+    }
     assert not result.isError
     assert (tmp_path / "stdio-smoke").exists()
