@@ -1,9 +1,11 @@
+import sys
 from pathlib import Path
 from typing import Annotated, Any
 
 from arcade_mcp_server import MCPApp
+from PIL import Image
 
-from academic_slides_harness.core.models import RunManifest, ToolResult
+from academic_slides_harness.core.models import RunManifest, ToolResult, sha256_bytes
 from academic_slides_harness.ingest.pdf import inspect_pdf
 from academic_slides_harness.llm.providers import NoLLMProvider
 from academic_slides_harness.render.beamer import BeamerDeck, BeamerSlide, render_beamer_tex
@@ -18,6 +20,7 @@ from academic_slides_harness.visualize.preview import (
 
 MCP_TOOL_NAMES = frozenset(
     {
+        "compile_rendered_beamer",
         "create_run",
         "ingest_source",
         "plan_deck",
@@ -41,9 +44,13 @@ def create_run(
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "screenshots").mkdir(exist_ok=True)
     manifest = RunManifest.create(run_dir=run_dir, title=title)
+    manifest_path = run_dir / "manifest.json"
+    manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+    structured_content = manifest.to_structured_content()
+    structured_content["manifest_path"] = str(manifest_path.resolve())
     return ToolResult.success(
         message=f"Created run {manifest.run_id}",
-        structured_content=manifest.to_structured_content(),
+        structured_content=structured_content,
     )
 
 
@@ -82,12 +89,27 @@ def render_beamer(
     slides: Annotated[list[dict[str, Any]], "Slide objects with title and bullets fields."],
 ) -> ToolResult:
     """Render a Beamer deck.tex file from structured slide data."""
+    parsed_slides: list[BeamerSlide] = []
+    for index, slide in enumerate(slides, start=1):
+        if "title" not in slide or "bullets" not in slide:
+            return ToolResult.error(
+                kind="invalid_slide",
+                message=f"Slide {index} must include title and bullets.",
+                details={"slide_index": index},
+            )
+        bullets = slide["bullets"]
+        if not isinstance(bullets, list):
+            return ToolResult.error(
+                kind="invalid_slide",
+                message=f"Slide {index} bullets must be a list.",
+                details={"slide_index": index},
+            )
+        parsed_slides.append(
+            BeamerSlide(title=str(slide["title"]), bullets=[str(item) for item in bullets])
+        )
     deck = BeamerDeck(
         title=title,
-        slides=[
-            BeamerSlide(title=str(slide["title"]), bullets=[str(item) for item in slide["bullets"]])
-            for slide in slides
-        ],
+        slides=parsed_slides,
     )
     out_dir = Path(output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -95,7 +117,11 @@ def render_beamer(
     tex_path.write_text(render_beamer_tex(deck), encoding="utf-8")
     return ToolResult.success(
         message="Rendered Beamer source",
-        structured_content={"deck_tex": str(tex_path), "title": title},
+        structured_content={
+            "deck_tex": str(tex_path),
+            "title": title,
+            "sha256": sha256_bytes(tex_path.read_bytes()),
+        },
     )
 
 
@@ -108,6 +134,7 @@ def validate_run(
     checks = {
         "run_dir_exists": path.exists(),
         "screenshots_dir_exists": (path / "screenshots").exists(),
+        "manifest_exists": (path / "manifest.json").exists(),
     }
     return ToolResult.success(
         message="Validation completed",
@@ -125,17 +152,20 @@ def render_source_preview(
     scale: Annotated[float, "Explicit render scale override; use 0 to derive from DPI."] = 0.0,
 ) -> ToolResult:
     """Render source PDF pages to PNG preview artifacts."""
-    artifacts = render_pdf_pages(
-        pdf_path=Path(source_pdf),
-        output_dir=Path(output_dir),
-        target="source_pdf",
-        pages=parse_page_selection(pages),
-        options=RenderOptions(
-            resolution=resolution,
-            dpi=dpi or None,
-            scale=scale or None,
-        ),
-    )
+    try:
+        artifacts = render_pdf_pages(
+            pdf_path=Path(source_pdf),
+            output_dir=Path(output_dir),
+            target="source_pdf",
+            pages=parse_page_selection(pages),
+            options=RenderOptions(
+                resolution=resolution,
+                dpi=dpi or None,
+                scale=scale or None,
+            ),
+        )
+    except Exception as exc:
+        return _exception_result(kind="preview_failed", exc=exc)
     return ToolResult.success(
         message=f"Rendered {len(artifacts)} source previews",
         structured_content={
@@ -154,17 +184,20 @@ def render_slide_preview(
     scale: Annotated[float, "Explicit render scale override; use 0 to derive from DPI."] = 0.0,
 ) -> ToolResult:
     """Render deck PDF slides to PNG preview artifacts."""
-    artifacts = render_pdf_pages(
-        pdf_path=Path(deck_pdf),
-        output_dir=Path(output_dir),
-        target="deck_pdf",
-        pages=parse_page_selection(slides),
-        options=RenderOptions(
-            resolution=resolution,
-            dpi=dpi or None,
-            scale=scale or None,
-        ),
-    )
+    try:
+        artifacts = render_pdf_pages(
+            pdf_path=Path(deck_pdf),
+            output_dir=Path(output_dir),
+            target="deck_pdf",
+            pages=parse_page_selection(slides),
+            options=RenderOptions(
+                resolution=resolution,
+                dpi=dpi or None,
+                scale=scale or None,
+            ),
+        )
+    except Exception as exc:
+        return _exception_result(kind="preview_failed", exc=exc)
     return ToolResult.success(
         message=f"Rendered {len(artifacts)} slide previews",
         structured_content={
@@ -190,25 +223,28 @@ def render_zoom_crop(
         return ToolResult.error(
             kind="invalid_target", message=f"Unsupported visual target: {target}"
         )
-    artifact = render_crop(
-        pdf_path=Path(pdf_path),
-        output_dir=Path(output_dir),
-        target=target,
-        page=page,
-        crop=CropBox(
-            x=float(crop["x"]),
-            y=float(crop["y"]),
-            width=float(crop["width"]),
-            height=float(crop["height"]),
-            normalized=bool(crop.get("normalized", True)),
-        ),
-        options=RenderOptions(
-            resolution=resolution,
-            dpi=dpi or None,
-            scale=scale or None,
-            zoom=zoom,
-        ),
-    )
+    try:
+        artifact = render_crop(
+            pdf_path=Path(pdf_path),
+            output_dir=Path(output_dir),
+            target=target,
+            page=page,
+            crop=CropBox(
+                x=float(crop["x"]),
+                y=float(crop["y"]),
+                width=float(crop["width"]),
+                height=float(crop["height"]),
+                normalized=bool(crop.get("normalized", True)),
+            ),
+            options=RenderOptions(
+                resolution=resolution,
+                dpi=dpi or None,
+                scale=scale or None,
+                zoom=zoom,
+            ),
+        )
+    except Exception as exc:
+        return _exception_result(kind="crop_failed", exc=exc)
     return ToolResult.success(
         message="Rendered zoom crop",
         structured_content={"artifact": artifact.to_structured_content()},
@@ -221,10 +257,15 @@ def list_visual_artifacts(
 ) -> ToolResult:
     """List PNG visual artifact paths in a screenshots directory."""
     directory = Path(screenshots_dir).resolve()
-    artifacts = sorted(str(path) for path in directory.glob("*.png")) if directory.exists() else []
+    png_paths = sorted(directory.rglob("*.png")) if directory.exists() else []
+    artifacts = [_png_metadata(path) for path in png_paths]
     return ToolResult.success(
         message=f"Found {len(artifacts)} visual artifacts",
-        structured_content={"screenshots_dir": str(directory), "paths": artifacts},
+        structured_content={
+            "screenshots_dir": str(directory),
+            "paths": [artifact["path"] for artifact in artifacts],
+            "artifacts": artifacts,
+        },
     )
 
 
@@ -234,10 +275,16 @@ def compile_rendered_beamer(
     output_dir: Annotated[str, "Directory where the compiled PDF should be written."],
 ) -> ToolResult:
     """Compile a rendered Beamer .tex file to PDF with Tectonic."""
-    pdf_path = compile_tex_with_tectonic(tex_path=Path(tex_path), output_dir=Path(output_dir))
+    try:
+        pdf_path = compile_tex_with_tectonic(tex_path=Path(tex_path), output_dir=Path(output_dir))
+    except Exception as exc:
+        return _exception_result(kind="compile_failed", exc=exc)
     return ToolResult.success(
         message="Compiled Beamer PDF",
-        structured_content={"pdf_path": str(pdf_path.resolve())},
+        structured_content={
+            "pdf_path": str(pdf_path.resolve()),
+            "sha256": sha256_bytes(pdf_path.read_bytes()),
+        },
     )
 
 
@@ -253,6 +300,7 @@ def build_app() -> MCPApp:
         render_source_preview,
         render_zoom_crop,
         list_visual_artifacts,
+        compile_rendered_beamer,
     ]:
         app.add_tool(tool)
     app.add_text_resource(
@@ -276,8 +324,41 @@ def build_app() -> MCPApp:
     return app
 
 
+def main(argv: list[str] | None = None) -> None:
+    args = list(sys.argv[1:] if argv is None else argv)
+    transport = args[0] if args else "stdio"
+    if transport not in {"stdio", "http"}:
+        raise SystemExit(f"Unsupported transport '{transport}'. Use 'stdio' or 'http'.")
+    build_app().run(transport=transport)
+
+
 def _slug(title: str) -> str:
     return "".join(char.lower() if char.isalnum() else "-" for char in title).strip("-")
+
+
+def _png_metadata(path: Path) -> dict[str, Any]:
+    with Image.open(path) as image:
+        width, height = image.size
+    return {
+        "path": str(path.resolve()),
+        "width": width,
+        "height": height,
+        "format": "png",
+        "sha256": sha256_bytes(path.read_bytes()),
+        "dpi": None,
+        "scale": None,
+        "zoom": None,
+        "target": None,
+        "page": None,
+    }
+
+
+def _exception_result(*, kind: str, exc: Exception) -> ToolResult:
+    return ToolResult.error(
+        kind=kind,
+        message=str(exc),
+        details={"exception_type": exc.__class__.__name__},
+    )
 
 
 _DRAFT_PROMPT = "Draft a Beamer-first academic deck from ingested source artifacts."
@@ -285,3 +366,7 @@ _REVIEW_PROMPT = "Review slide validation artifacts and report only evidence-bac
 _VISUAL_REVIEW_PROMPT = (
     "Review screenshots, crops, dimensions, and hashes before judging visual quality."
 )
+
+
+if __name__ == "__main__":
+    main()

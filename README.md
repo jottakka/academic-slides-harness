@@ -38,3 +38,17 @@ The initial MCP surface is implemented in `academic_slides_harness.mcp.server`.
 Visual tools generate PNG artifacts with absolute paths, dimensions, DPI, scale,
 zoom, and SHA-256 hashes so agents can inspect rendered evidence instead of
 guessing from source text.
+
+## MCP Stdio
+
+The root `server.py` runs the Arcade MCP app with stdio by default:
+
+```powershell
+uv run python server.py stdio
+```
+
+Arcade CLI can generate client config for this entrypoint:
+
+```powershell
+C:\Users\fjlim\.local\bin\arcade.exe configure vscode --transport stdio --entrypoint server.py --name academic-slides-harness --config compat\clients\vscode-academic-slides-harness.json
+```

@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "academic-slides-harness": {
+      "command": "C:\\Users\\fjlim\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python313\\Scripts\\uv.EXE",
+      "args": [
+        "run",
+        "--directory",
+        "C:\\Users\\fjlim\\Documents\\Codex\\academic-slides-harness",
+        "python",
+        "server.py"
+      ],
+      "env": {}
+    }
+  }
+}
