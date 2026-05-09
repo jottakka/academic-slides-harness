@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "academic-slides-harness"
+version = "0.1.0"
+description = "Deterministic LaTeX-first harness for academic slide deck generation."
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+dependencies = [
+    "arcade-mcp-server>=1.21.3",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "pdfplumber>=0.11.9",
+    "pydantic>=2.12.5",
+    "pymupdf>=1.27.2",
+    "pypdf>=6.10.2",
+    "transitions>=0.9.3",
+]
+
+[project.scripts]
+academic-slides-harness = "academic_slides_harness.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-asyncio>=1.3.0",
+    "ruff>=0.14.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/academic_slides_harness"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+markers = [
+    "ollama: requires a running local Ollama server",
+    "arcade_live: requires a live Arcade engine/worker stack",
+    "latex: compiles LaTeX with Tectonic",
+]
