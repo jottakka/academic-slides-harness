@@ -42,7 +42,13 @@ def create_run(
     title: Annotated[str, "Human-readable deck or source title for the run."],
 ) -> ToolResult:
     """Create a local academic slide generation run directory and manifest."""
-    run_dir = Path(base_dir).resolve() / _slug(title)
+    slug = _slug(title)
+    if not slug:
+        return ToolResult.error(
+            kind="invalid_title",
+            message="Run title must include at least one alphanumeric character.",
+        )
+    run_dir = Path(base_dir).resolve() / slug
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "screenshots").mkdir(exist_ok=True)
     manifest = RunManifest.create(run_dir=run_dir, title=title)

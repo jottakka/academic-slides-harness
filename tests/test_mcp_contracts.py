@@ -47,6 +47,14 @@ def test_create_run_returns_structured_content(tmp_path: Path) -> None:
     assert result.structured_content["state"] == "created"
 
 
+def test_create_run_rejects_title_without_usable_slug(tmp_path: Path) -> None:
+    result = create_run(base_dir=tmp_path, title=" !!! ")
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_title"
+    assert not (tmp_path / "manifest.json").exists()
+
+
 def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
     app = build_app()
     tool_names = {
