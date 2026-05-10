@@ -32,6 +32,7 @@ uv sync
 uv run ruff format --check .
 uv run ruff check .
 uv run pytest -m "not ollama and not arcade_live" -q
+uv run pytest tests/test_open_access_book_e2e.py -q
 ```
 
 ## Local Diagnostics
@@ -65,6 +66,11 @@ guessing from source text.
 Visual preview and crop tools refuse to overwrite an existing PNG by default and
 return a typed `artifact_exists` error through MCP. Pass `overwrite=true` only
 when replacing a previous artifact is intentional.
+
+The advanced book E2E test uses a checked-in open-access image-processing
+chapter fixture and exercises ingestion, source previews, source zoom crops,
+deterministic planning, Beamer rendering, Tectonic compilation, deck previews,
+deck zoom crops, artifact listing, and pixel-level PNG validation.
 
 ## MCP Stdio
 
