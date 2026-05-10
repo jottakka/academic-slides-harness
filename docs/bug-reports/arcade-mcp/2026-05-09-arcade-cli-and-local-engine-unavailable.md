@@ -4,6 +4,11 @@
 
 The current Windows environment has Arcade packages installed in the project venv, and the Arcade CLI can be installed with `uv tool install arcade-mcp`. After install, the executable is available at `C:\Users\fjlim\.local\bin\arcade.exe`, but that directory is not on the current PATH. The configured local engine and worker ports are also closed.
 
+Correction: local Arcade MCP stdio work does not require the engine or worker
+ports. The local path is `arcade mcp stdio --cwd .` or this repo's
+`uv run python server.py stdio` entrypoint. Treat the port checks below as
+HTTP-specific diagnostics, not as the default live-test gate.
+
 ## Reproduction
 
 From `C:\Users\fjlim\Documents\Codex\academic-slides-harness`:
@@ -29,11 +34,11 @@ After installing Arcade MCP project dependencies, either the expected CLI should
 
 ## Impact
 
-- Live `arcade_live` tests cannot run.
-- Agents can only perform in-process MCP registration checks until the engine/worker startup path is fixed.
+- HTTP endpoint checks cannot run until the configured ports are open.
+- Stdio-based `arcade_live` checks can run locally through the Arcade CLI without engine/worker endpoints.
 
 ## Suggested Fix
 
 - Document the canonical Windows command for starting the Arcade MCP server from a `uv` project and make PATH setup explicit.
-- Add a smoke test command that validates CLI availability, engine health, and worker health separately.
-- Provide typed error messages when engine or worker endpoints are down.
+- Keep engine/worker health checks behind an explicit HTTP diagnostics flag.
+- Validate the local `arcade mcp stdio` command path separately from HTTP endpoints.

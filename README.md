@@ -43,10 +43,10 @@ uv run academic-slides-harness doctor arcade
 uv run academic-slides-harness doctor arcade --json
 ```
 
-The command checks the Arcade CLI, local engine endpoint `127.0.0.1:9099`,
-and worker endpoint `127.0.0.1:8002` separately. A non-zero exit means at
-least one dependency is unavailable, so live `arcade_live` tests should remain
-skipped until the failing check is fixed.
+The command checks the Arcade CLI and this repo's local stdio MCP entrypoint.
+Arcade MCP can run locally with stdio; local engine and worker ports are not
+required for the default live path. Use `--check-http-endpoints` only when
+explicitly validating an HTTP setup.
 
 Use the secret doctor before sharing local Arcade configs or repro bundles:
 
@@ -75,4 +75,10 @@ Arcade CLI can generate client config for this entrypoint:
 
 ```powershell
 C:\Users\fjlim\.local\bin\arcade.exe configure vscode --transport stdio --entrypoint server.py --name academic-slides-harness --config compat\clients\vscode-academic-slides-harness.json
+```
+
+The Arcade CLI also exposes a local MCP runner:
+
+```powershell
+C:\Users\fjlim\.local\bin\arcade.exe mcp stdio --cwd .
 ```

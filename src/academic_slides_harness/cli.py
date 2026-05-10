@@ -30,9 +30,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     doctor = subparsers.add_parser("doctor", help="Run local environment checks.")
     doctor_targets = doctor.add_subparsers(dest="doctor_target")
-    arcade = doctor_targets.add_parser("arcade", help="Check Arcade CLI, engine, and worker.")
+    arcade = doctor_targets.add_parser("arcade", help="Check local Arcade MCP readiness.")
     arcade.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     arcade.add_argument("--arcade-cli-path", help="Explicit Arcade CLI executable path.")
+    arcade.add_argument(
+        "--check-http-endpoints",
+        action="store_true",
+        help="Also check legacy local HTTP engine/worker endpoints.",
+    )
     arcade.add_argument("--engine-host", default="127.0.0.1")
     arcade.add_argument("--engine-port", type=int, default=9099)
     arcade.add_argument("--worker-host", default="127.0.0.1")
@@ -61,6 +66,7 @@ def _doctor_arcade(args: argparse.Namespace) -> int:
         worker_host=args.worker_host,
         worker_port=args.worker_port,
         timeout=args.timeout,
+        check_http_endpoints=args.check_http_endpoints,
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
@@ -95,22 +101,29 @@ def diagnose_arcade(
     worker_host: str = "127.0.0.1",
     worker_port: int = 8002,
     timeout: float = 1.0,
+    check_http_endpoints: bool = False,
 ) -> dict[str, Any]:
     checks = [
         _check_arcade_cli(arcade_cli_path),
-        _check_tcp_endpoint(
-            name="arcade_engine",
-            host=engine_host,
-            port=engine_port,
-            timeout=timeout,
-        ),
-        _check_tcp_endpoint(
-            name="arcade_worker",
-            host=worker_host,
-            port=worker_port,
-            timeout=timeout,
-        ),
+        _check_local_stdio_entrypoint(Path.cwd()),
     ]
+    if check_http_endpoints:
+        checks.extend(
+            [
+                _check_tcp_endpoint(
+                    name="arcade_engine",
+                    host=engine_host,
+                    port=engine_port,
+                    timeout=timeout,
+                ),
+                _check_tcp_endpoint(
+                    name="arcade_worker",
+                    host=worker_host,
+                    port=worker_port,
+                    timeout=timeout,
+                ),
+            ]
+        )
     return {"ok": all(check["ok"] for check in checks), "checks": checks}
 
 
@@ -198,6 +211,30 @@ def _check_arcade_cli(arcade_cli_path: str | None) -> dict[str, Any]:
         "ok": True,
         "message": f"Arcade CLI found at {resolved}",
         "details": {"path": str(resolved)},
+    }
+
+
+def _check_local_stdio_entrypoint(project_root: Path) -> dict[str, Any]:
+    server_path = project_root / "server.py"
+    if not server_path.exists():
+        return {
+            "name": "local_stdio_entrypoint",
+            "ok": False,
+            "message": "server.py was not found in the current project root.",
+            "details": {
+                "project_root": str(project_root.resolve()),
+                "expected_entrypoint": str(server_path.resolve()),
+            },
+        }
+    return {
+        "name": "local_stdio_entrypoint",
+        "ok": True,
+        "message": "Local stdio MCP entrypoint is available.",
+        "details": {
+            "entrypoint": str(server_path.resolve()),
+            "stdio_command": "uv run python server.py stdio",
+            "arcade_command": f"arcade mcp stdio --cwd {project_root.resolve()}",
+        },
     }
 
 

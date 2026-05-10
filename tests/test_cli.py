@@ -4,7 +4,29 @@ import socket
 from academic_slides_harness.cli import main
 
 
-def test_doctor_arcade_reports_cli_engine_and_worker_failures(
+def test_doctor_arcade_defaults_to_local_stdio_without_http_endpoint_checks(
+    capsys,
+    tmp_path,
+) -> None:
+    exit_code = main(
+        [
+            "doctor",
+            "arcade",
+            "--json",
+            "--arcade-cli-path",
+            str(tmp_path / "missing-arcade.exe"),
+        ]
+    )
+
+    output = json.loads(capsys.readouterr().out)
+    check_names = {check["name"] for check in output["checks"]}
+
+    assert exit_code == 1
+    assert output["ok"] is False
+    assert check_names == {"arcade_cli", "local_stdio_entrypoint"}
+
+
+def test_doctor_arcade_checks_http_endpoints_only_when_requested(
     capsys,
     tmp_path,
 ) -> None:
@@ -18,6 +40,7 @@ def test_doctor_arcade_reports_cli_engine_and_worker_failures(
             "--json",
             "--arcade-cli-path",
             str(tmp_path / "missing-arcade.exe"),
+            "--check-http-endpoints",
             "--engine-port",
             str(engine_port),
             "--worker-port",
@@ -32,8 +55,15 @@ def test_doctor_arcade_reports_cli_engine_and_worker_failures(
 
     assert exit_code == 1
     assert output["ok"] is False
-    assert check_names == {"arcade_cli", "arcade_engine", "arcade_worker"}
-    assert all(check["ok"] is False for check in output["checks"])
+    assert check_names == {
+        "arcade_cli",
+        "arcade_engine",
+        "arcade_worker",
+        "local_stdio_entrypoint",
+    }
+    checks_by_name = {check["name"]: check for check in output["checks"]}
+    assert checks_by_name["arcade_engine"]["ok"] is False
+    assert checks_by_name["arcade_worker"]["ok"] is False
 
 
 def test_doctor_secrets_reports_findings_without_leaking_secret_values(
