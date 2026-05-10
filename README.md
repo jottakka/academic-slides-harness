@@ -66,6 +66,11 @@ guessing from source text.
 Visual preview and crop tools refuse to overwrite an existing PNG by default and
 return a typed `artifact_exists` error through MCP. Pass `overwrite=true` only
 when replacing a previous artifact is intentional.
+Rich visual deck guidance is exposed as MCP resources:
+`academic-slides://layouts/rich_slide_patterns`,
+`academic-slides://schemas/rich_slide_plan`, and visual/didactic rubric prompts.
+Use `RenderLayoutPlaceholders` to generate PNG placeholder previews for the
+supported rich layouts before asking an agent to build a deck.
 
 The advanced book E2E test uses a checked-in open-access image-processing
 chapter fixture and exercises ingestion, source previews, source zoom crops,

@@ -21,6 +21,13 @@ from academic_slides_harness.render.beamer import (
     render_beamer_tex,
     render_rich_beamer_tex,
 )
+from academic_slides_harness.render.layout_catalog import (
+    LAYOUT_PATTERNS,
+    layout_catalog_markdown,
+    parse_layout_selection,
+    render_layout_placeholder_images,
+    rich_slide_schema_markdown,
+)
 from academic_slides_harness.render.tectonic import compile_tex_with_tectonic
 from academic_slides_harness.visualize.options import CropBox, RenderOptions, parse_page_selection
 from academic_slides_harness.visualize.preview import (
@@ -38,12 +45,26 @@ MCP_TOOL_NAMES = frozenset(
         "ingest_source",
         "plan_deck",
         "render_beamer",
+        "render_layout_placeholders",
         "render_rich_beamer",
         "validate_run",
         "render_slide_preview",
         "render_source_preview",
         "render_zoom_crop",
         "list_visual_artifacts",
+    }
+)
+
+MCP_RESOURCE_URIS = frozenset(
+    {
+        "academic-slides://layouts/rich_slide_patterns",
+        "academic-slides://prompts/draft_academic_deck",
+        "academic-slides://prompts/draft_visual_academic_deck",
+        "academic-slides://prompts/didactic_quality_rubric",
+        "academic-slides://prompts/review_slide_validation",
+        "academic-slides://prompts/review_visual_artifacts",
+        "academic-slides://prompts/visual_quality_rubric",
+        "academic-slides://schemas/rich_slide_plan",
     }
 )
 
@@ -242,6 +263,57 @@ def render_rich_beamer(
             "layouts": [slide.layout for slide in parsed_slides],
             "assets": assets,
             "sha256": sha256_file(tex_path),
+        },
+    )
+
+
+def render_layout_placeholders(
+    *,
+    output_dir: Annotated[str, "Directory where layout placeholder PNGs should be written."],
+    layouts: Annotated[
+        str,
+        "Comma-separated rich layout names, or 'all'.",
+    ] = "all",
+    width: Annotated[int, "Placeholder PNG width in pixels. Minimum 640."] = 1280,
+    height: Annotated[int, "Placeholder PNG height in pixels. Minimum 360."] = 720,
+    overwrite: Annotated[bool, "Overwrite existing placeholder PNGs when true."] = False,
+) -> ToolResult:
+    """Render visual placeholder PNGs for supported rich Beamer layouts."""
+    if width < 640 or height < 360:
+        return ToolResult.error(
+            kind="invalid_options",
+            message="Placeholder dimensions must be at least 640x360.",
+            details={"width": width, "height": height},
+        )
+    try:
+        selected_layouts = parse_layout_selection(layouts)
+        artifacts = render_layout_placeholder_images(
+            output_dir=Path(output_dir).resolve(),
+            layouts=selected_layouts,
+            width=width,
+            height=height,
+            overwrite=overwrite,
+        )
+    except ValueError as exc:
+        return ToolResult.error(
+            kind="invalid_layout",
+            message=str(exc),
+            details={"layouts": layouts, "known_layouts": list(LAYOUT_PATTERNS)},
+        )
+    except FileExistsError as exc:
+        return ToolResult.error(
+            kind="artifact_exists",
+            message=f"Placeholder already exists: {exc.filename or exc}",
+            details={"path": str(exc.filename or exc), "overwrite": overwrite},
+        )
+    except OSError as exc:
+        return _exception_result(kind="placeholder_render_failed", exc=exc)
+    return ToolResult.success(
+        message=f"Rendered {len(artifacts)} layout placeholders",
+        structured_content={
+            "output_dir": str(Path(output_dir).resolve()),
+            "layouts": selected_layouts,
+            "artifacts": artifacts,
         },
     )
 
@@ -480,6 +552,7 @@ def build_app() -> MCPApp:
         ingest_source,
         plan_deck,
         render_beamer,
+        render_layout_placeholders,
         render_rich_beamer,
         validate_run,
         render_slide_preview,
@@ -489,24 +562,13 @@ def build_app() -> MCPApp:
         compile_rendered_beamer,
     ]:
         app.add_tool(tool)
-    app.add_text_resource(
-        "academic-slides://prompts/draft_academic_deck",
-        text=_DRAFT_PROMPT,
-        name="draft_academic_deck",
-        description="Prompt for drafting an academic Beamer deck.",
-    )
-    app.add_text_resource(
-        "academic-slides://prompts/review_slide_validation",
-        text=_REVIEW_PROMPT,
-        name="review_slide_validation",
-        description="Prompt for reviewing deterministic slide validation artifacts.",
-    )
-    app.add_text_resource(
-        "academic-slides://prompts/review_visual_artifacts",
-        text=_VISUAL_REVIEW_PROMPT,
-        name="review_visual_artifacts",
-        description="Prompt for reviewing screenshot and crop artifacts.",
-    )
+    for uri, text, name, description in _TEXT_RESOURCES:
+        app.add_text_resource(
+            uri,
+            text=text,
+            name=name,
+            description=description,
+        )
     return app
 
 
@@ -911,6 +973,110 @@ _DRAFT_PROMPT = "Draft a Beamer-first academic deck from ingested source artifac
 _REVIEW_PROMPT = "Review slide validation artifacts and report only evidence-backed issues."
 _VISUAL_REVIEW_PROMPT = (
     "Review screenshots, crops, dimensions, and hashes before judging visual quality."
+)
+_DRAFT_VISUAL_DECK_PROMPT = "\n".join(
+    [
+        "Draft a visual academic deck using AcademicSlidesHarness MCP tools.",
+        "",
+        "Hard rules:",
+        "- Read `academic-slides://layouts/rich_slide_patterns` before choosing layouts.",
+        "- Use `RenderLayoutPlaceholders` when you need to see the spatial structure.",
+        "- Use `RenderSourcePreview` and `RenderZoomCrop` before selecting visual evidence.",
+        "- Call `RenderRichBeamer`; do not fall back to generic bullet-summary decks.",
+        "- Every claim must be tied to a source page or visual artifact.",
+        "- Keep text inside the layout limits from `academic-slides://schemas/rich_slide_plan`.",
+        "- If a source image contains too much embedded PDF text, prefer a tighter crop.",
+        "- If the image is too small, low contrast, or illegible, report the risk "
+        "instead of using it.",
+        "",
+        "Required final evidence:",
+        "- deck_tex or deck_pdf path",
+        "- source previews and crops used",
+        "- slide previews",
+        "- layout choices and why each layout was selected",
+        "- remaining visual or didactic risks",
+    ]
+)
+_VISUAL_QUALITY_RUBRIC = "\n".join(
+    [
+        "# Visual Quality Rubric",
+        "",
+        "Judge rendered PNGs and crops, not TeX alone.",
+        "",
+        "Checks:",
+        "- Visual evidence is relevant to the claim.",
+        "- Important details are readable at slide-preview size.",
+        "- Crops remove irrelevant PDF text, margins, legends, or neighboring figures "
+        "when possible.",
+        "- The slide has one dominant visual hierarchy: title, evidence, claim, citation.",
+        "- Image dimensions, hash, path, DPI, and page metadata are present.",
+        "- Low contrast, tiny labels, blur, or clutter are reported as risks.",
+    ]
+)
+_DIDACTIC_QUALITY_RUBRIC = "\n".join(
+    [
+        "# Didactic Quality Rubric",
+        "",
+        "A good academic slide teaches one point with visible evidence.",
+        "",
+        "Checks:",
+        "- The title or claim states the point to learn, not just a topic label.",
+        "- The learning goal is concrete and short.",
+        "- The visual supports the claim instead of decorating the slide.",
+        "- Explanatory text is brief enough to be read during a talk.",
+        "- Sequential material uses `workflow_steps`, not paragraph bullets.",
+        "- Source pages are cited for evidence-bearing slides.",
+    ]
+)
+_TEXT_RESOURCES = (
+    (
+        "academic-slides://prompts/draft_academic_deck",
+        _DRAFT_PROMPT,
+        "draft_academic_deck",
+        "Prompt for drafting an academic Beamer deck.",
+    ),
+    (
+        "academic-slides://prompts/review_slide_validation",
+        _REVIEW_PROMPT,
+        "review_slide_validation",
+        "Prompt for reviewing deterministic slide validation artifacts.",
+    ),
+    (
+        "academic-slides://prompts/review_visual_artifacts",
+        _VISUAL_REVIEW_PROMPT,
+        "review_visual_artifacts",
+        "Prompt for reviewing screenshot and crop artifacts.",
+    ),
+    (
+        "academic-slides://layouts/rich_slide_patterns",
+        layout_catalog_markdown(),
+        "rich_slide_patterns",
+        "Catalog of supported rich visual slide layout patterns.",
+    ),
+    (
+        "academic-slides://schemas/rich_slide_plan",
+        rich_slide_schema_markdown(),
+        "rich_slide_plan",
+        "Schema and text limits for RenderRichBeamer slide plans.",
+    ),
+    (
+        "academic-slides://prompts/draft_visual_academic_deck",
+        _DRAFT_VISUAL_DECK_PROMPT,
+        "draft_visual_academic_deck",
+        "Prompt for drafting evidence-backed visual academic decks.",
+    ),
+    (
+        "academic-slides://prompts/visual_quality_rubric",
+        _VISUAL_QUALITY_RUBRIC,
+        "visual_quality_rubric",
+        "Rubric for reviewing visual slide artifacts.",
+    ),
+    (
+        "academic-slides://prompts/didactic_quality_rubric",
+        _DIDACTIC_QUALITY_RUBRIC,
+        "didactic_quality_rubric",
+        "Rubric for reviewing slide teaching quality.",
+    ),
 )
 
 

@@ -94,6 +94,21 @@ Resources to add:
 - `academic-slides://prompts/didactic_quality_rubric`
 - `academic-slides://schemas/rich_slide_plan`
 
+Status: implemented with a layout catalog and placeholder preview tool.
+
+Implemented contract:
+
+- MCP resources:
+  - `academic-slides://layouts/rich_slide_patterns`
+  - `academic-slides://schemas/rich_slide_plan`
+  - `academic-slides://prompts/draft_visual_academic_deck`
+  - `academic-slides://prompts/visual_quality_rubric`
+  - `academic-slides://prompts/didactic_quality_rubric`
+- MCP tool: `RenderLayoutPlaceholders`.
+- Placeholder PNGs are written to a caller-provided output directory and include
+  absolute paths, dimensions, format, hash, layout name, required blocks, and
+  suggested text limits.
+
 Acceptance criteria:
 
 - Resources are visible through stdio MCP.
@@ -101,7 +116,73 @@ Acceptance criteria:
 - Prompt text requires source evidence, learning goals, and visual QA.
 - Schema text matches the renderer contract.
 
-## Ticket 3: Visual And Didactic Quality Checks
+Validation:
+
+- `uv run pytest tests/test_mcp_contracts.py tests/test_mcp_stdio.py -q`
+- `uv run pytest -m "not ollama and not arcade_live" -q`
+- `uv run academic-slides-harness doctor arcade --json`
+- `uv run pytest -m arcade_live -q`
+
+## Ticket 3: Rich Plan Text Limits
+
+Goal: prevent overflow before render by checking text density in the rich plan.
+
+Checks:
+
+- Max title length per layout.
+- Max learning-goal length per layout.
+- Max claim and explanation length per layout.
+- Max step count and per-step length for `workflow_steps`.
+- Actionable typed errors that tell the agent which slide/block to shorten.
+
+Acceptance criteria:
+
+- Validator returns typed `text_overflow_risk` errors.
+- Tests cover title overflow, claim overflow, explanation overflow, too many
+  steps, and a passing compact deck.
+- `RenderRichBeamer` or a dedicated validation tool can report the problem
+  before LaTeX compilation.
+
+## Ticket 4: Image Sanitization Before Embed
+
+Goal: make visual assets safe and predictable before `RenderRichBeamer` copies
+them into the deck.
+
+Checks:
+
+- Input path exists and is a readable image.
+- Image format is PNG/JPEG or convertible to PNG.
+- Image mode is normalized to RGB/RGBA when needed.
+- Minimum dimensions are enforced for slide use.
+- Sanitized output records absolute path, width, height, format, hash, source
+  path, and whether conversion was performed.
+
+Acceptance criteria:
+
+- Valid PNG/JPEG assets pass unchanged or with a clearly reported conversion.
+- Corrupt images return typed `invalid_visual_artifact`.
+- Tiny images return typed `image_too_small`.
+- The rich renderer uses sanitized metadata instead of blindly copying images.
+
+## Ticket 5: Image Legibility And Crop Quality
+
+Goal: judge whether a chosen source preview/crop is usable on a slide.
+
+Checks:
+
+- Dimensions and aspect ratio fit the selected layout.
+- Basic contrast/ink metrics warn on nearly blank or low-contrast images.
+- Crops with too much embedded PDF text are flagged for tighter crop selection.
+- Low-quality findings are warnings at first, except unreadable/corrupt images.
+
+Acceptance criteria:
+
+- Synthetic blank, low-contrast, tiny, and normal images produce distinct
+  structured results.
+- Real source-preview artifacts include quality warnings in their metadata.
+- Agent-facing prompts require replacing or cropping images with hard warnings.
+
+## Ticket 6: Visual And Didactic Quality Checks
 
 Goal: add a deterministic validator for rich decks and rendered artifacts.
 
@@ -120,7 +201,7 @@ Acceptance criteria:
 - Tests cover a passing deck and clear failures.
 - The final agent workflow uses this validator before accepting a deck.
 
-## Ticket 4: End-To-End Visual Deck Agent Run
+## Ticket 7: End-To-End Visual Deck Agent Run
 
 Goal: have an MCP-only agent generate a 5-7 slide deck from a colorful image
 processing chapter using rich layouts.

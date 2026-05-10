@@ -26,8 +26,11 @@ the call is cancelled, stop and report that blocker.
 
 1. Rich slide schema and `RenderRichBeamer`.
 2. MCP prompt/resources for visual academic decks and quality rubrics.
-3. Deterministic visual/didactic quality validator.
-4. MCP-only agent E2E deck run with real source visuals.
+3. Rich plan text limits to prevent title, claim, explanation, and step overflow.
+4. Image sanitization before embedding visual assets in Beamer.
+5. Image legibility and crop quality scoring.
+6. Deterministic visual/didactic quality validator.
+7. MCP-only agent E2E deck run with real source visuals.
 
 ## Owned Files By Ticket
 
@@ -43,17 +46,38 @@ Ticket 1:
 Ticket 2:
 
 - `src/academic_slides_harness/mcp/server.py`
+- `src/academic_slides_harness/render/layout_catalog.py`
 - `tests/test_mcp_contracts.py`
 - `tests/test_mcp_stdio.py`
+- `tests/test_arcade_live.py`
 - `docs/design/visual-rich-deck-roadmap.md`
 
 Ticket 3:
 
 - `src/academic_slides_harness/validate/` or equivalent validator module
+- `src/academic_slides_harness/mcp/server.py`
+- `tests/test_*quality*.py`
+
+Ticket 4:
+
+- `src/academic_slides_harness/visualize/sanitize.py` or equivalent module
+- `src/academic_slides_harness/mcp/server.py`
+- `tests/test_visualize.py`
+
+Ticket 5:
+
+- `src/academic_slides_harness/visualize/quality.py` or equivalent module
+- `src/academic_slides_harness/mcp/server.py`
+- `tests/test_visualize.py`
+- E2E fixture tests that inspect real PNG artifacts
+
+Ticket 6:
+
+- `src/academic_slides_harness/validate/` or equivalent validator module
 - `tests/test_*quality*.py`
 - E2E fixture tests that render previews/crops
 
-Ticket 4:
+Ticket 7:
 
 - No production code unless a validated blocker appears.
 - Generated artifacts under `runs/`.
@@ -102,15 +126,19 @@ Hard rules:
 Required flow:
 1. CreateRun.
 2. IngestSource.
-3. RenderSourcePreview for visual pages.
-4. RenderZoomCrop for at least one visual detail.
-5. ExtractSourcePages for the selected pages.
-6. RenderRichBeamer using source visuals and evidence-backed blocks.
-7. CompileRenderedBeamer.
-8. RenderSlidePreview for all slides.
-9. RenderZoomCrop for at least one deck slide.
-10. ListVisualArtifacts.
-11. ValidateRun.
+3. Read resources: rich slide schema, layout patterns, visual rubric, didactic rubric.
+4. RenderLayoutPlaceholders for candidate rich layouts.
+5. RenderSourcePreview for visual pages.
+6. RenderZoomCrop for at least one visual detail.
+7. ExtractSourcePages for the selected pages.
+8. Reject or replace source images that are too small, illegible, low contrast, or mostly embedded PDF text.
+9. Keep titles, claims, explanations, and steps within the rich layout limits.
+10. RenderRichBeamer using source visuals and evidence-backed blocks.
+11. CompileRenderedBeamer.
+12. RenderSlidePreview for all slides.
+13. RenderZoomCrop for at least one deck slide.
+14. ListVisualArtifacts.
+15. ValidateRun.
 
 Final report:
 - run_dir

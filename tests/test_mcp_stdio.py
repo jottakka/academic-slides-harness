@@ -50,6 +50,17 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
                 ],
             },
         )
+        placeholder_result = await session.call_tool(
+            "AcademicSlidesHarness_RenderLayoutPlaceholders",
+            {
+                "output_dir": str(tmp_path / "layout-placeholders"),
+                "layouts": "figure_explanation",
+            },
+        )
+        resources_response = await session.list_resources()
+        resource_result = await session.read_resource(
+            "academic-slides://layouts/rich_slide_patterns"
+        )
 
     tool_names = {tool.name for tool in response.tools}
     assert tool_names == {
@@ -60,6 +71,7 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
         "AcademicSlidesHarness_RenderBeamer",
+        "AcademicSlidesHarness_RenderLayoutPlaceholders",
         "AcademicSlidesHarness_RenderRichBeamer",
         "AcademicSlidesHarness_RenderSlidePreview",
         "AcademicSlidesHarness_RenderSourcePreview",
@@ -69,8 +81,14 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
     assert not result.isError
     assert not extract_result.isError
     assert not rich_result.isError
+    assert not placeholder_result.isError
     assert "Stdio extracted source text" in str(extract_result.content)
+    assert "figure_explanation" in str(resource_result.contents)
+    assert "academic-slides://schemas/rich_slide_plan" in {
+        str(resource.uri) for resource in resources_response.resources
+    }
     assert (tmp_path / "rich-rendered" / "deck.tex").exists()
+    assert (tmp_path / "layout-placeholders" / "layout-figure-explanation-placeholder.png").exists()
     assert (tmp_path / "stdio-smoke").exists()
 
 

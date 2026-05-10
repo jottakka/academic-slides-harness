@@ -5,6 +5,7 @@ import fitz
 
 from academic_slides_harness.ingest.pdf import normalize_extracted_pdf_text
 from academic_slides_harness.mcp.server import (
+    MCP_RESOURCE_URIS,
     MCP_TOOL_NAMES,
     build_app,
     compile_rendered_beamer,
@@ -14,6 +15,7 @@ from academic_slides_harness.mcp.server import (
     list_visual_artifacts,
     plan_deck,
     render_beamer,
+    render_layout_placeholders,
     render_rich_beamer,
     render_slide_preview,
     render_source_preview,
@@ -40,12 +42,26 @@ def test_mcp_tool_registry_contains_initial_contract() -> None:
         "list_visual_artifacts",
         "plan_deck",
         "render_beamer",
+        "render_layout_placeholders",
         "render_rich_beamer",
         "render_slide_preview",
         "render_source_preview",
         "render_zoom_crop",
         "validate_run",
     } == MCP_TOOL_NAMES
+
+
+def test_mcp_resource_registry_contains_rich_visual_deck_guidance() -> None:
+    assert {
+        "academic-slides://layouts/rich_slide_patterns",
+        "academic-slides://prompts/draft_academic_deck",
+        "academic-slides://prompts/draft_visual_academic_deck",
+        "academic-slides://prompts/didactic_quality_rubric",
+        "academic-slides://prompts/review_slide_validation",
+        "academic-slides://prompts/review_visual_artifacts",
+        "academic-slides://prompts/visual_quality_rubric",
+        "academic-slides://schemas/rich_slide_plan",
+    } == MCP_RESOURCE_URIS
 
 
 def test_build_app_returns_arcade_app_with_expected_name() -> None:
@@ -95,6 +111,7 @@ def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
         "AcademicSlidesHarness_RenderBeamer",
+        "AcademicSlidesHarness_RenderLayoutPlaceholders",
         "AcademicSlidesHarness_RenderRichBeamer",
         "AcademicSlidesHarness_RenderSlidePreview",
         "AcademicSlidesHarness_RenderSourcePreview",
@@ -102,6 +119,55 @@ def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
         "AcademicSlidesHarness_ValidateRun",
     }
     assert tool_names == expected
+
+
+def test_build_app_registers_rich_visual_guidance_resources() -> None:
+    app = build_app()
+
+    resource_uris = {resource.uri for resource, _handler in app._initial_resources}
+
+    assert resource_uris == MCP_RESOURCE_URIS
+
+
+def test_render_layout_placeholders_creates_visual_pngs_with_metadata(tmp_path: Path) -> None:
+    result = render_layout_placeholders(
+        output_dir=str(tmp_path / "layouts"),
+        layouts="hero_visual,figure_explanation",
+    )
+
+    assert result.ok is True
+    assert result.structured_content["layouts"] == ["hero_visual", "figure_explanation"]
+    artifacts = result.structured_content["artifacts"]
+    assert len(artifacts) == 2
+    for artifact in artifacts:
+        path = Path(artifact["path"])
+        assert path.is_file()
+        assert artifact["format"] == "png"
+        assert artifact["width"] == 1280
+        assert artifact["height"] == 720
+        assert artifact["sha256"]
+        assert artifact["layout"] in {"hero_visual", "figure_explanation"}
+        assert artifact["required_blocks"]
+
+
+def test_render_layout_placeholders_rejects_existing_artifacts_by_default(
+    tmp_path: Path,
+) -> None:
+    render_layout_placeholders(output_dir=str(tmp_path), layouts="takeaway")
+
+    result = render_layout_placeholders(output_dir=str(tmp_path), layouts="takeaway")
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "artifact_exists"
+
+
+def test_render_layout_placeholders_returns_typed_error_for_unknown_layout(
+    tmp_path: Path,
+) -> None:
+    result = render_layout_placeholders(output_dir=str(tmp_path), layouts="unknown_layout")
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_layout"
 
 
 def test_compile_rendered_beamer_returns_typed_timeout_error(
