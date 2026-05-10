@@ -13,6 +13,7 @@ EXPECTED_TOOL_NAMES = {
     "AcademicSlidesHarness_ListVisualArtifacts",
     "AcademicSlidesHarness_PlanDeck",
     "AcademicSlidesHarness_RenderBeamer",
+    "AcademicSlidesHarness_RenderRichBeamer",
     "AcademicSlidesHarness_RenderSlidePreview",
     "AcademicSlidesHarness_RenderSourcePreview",
     "AcademicSlidesHarness_RenderZoomCrop",

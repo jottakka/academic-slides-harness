@@ -11,6 +11,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
     server_entrypoint = Path(__file__).resolve().parents[1] / "server.py"
     source_pdf = _make_pdf(tmp_path / "source.pdf")
+    visual_path = _make_png(tmp_path / "source.png")
     server = StdioServerParameters(
         command=sys.executable,
         args=[str(server_entrypoint), "stdio"],
@@ -30,6 +31,25 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
             "AcademicSlidesHarness_ExtractSourcePages",
             {"source_pdf": str(source_pdf), "pages": "1", "max_chars_per_page": 200},
         )
+        rich_result = await session.call_tool(
+            "AcademicSlidesHarness_RenderRichBeamer",
+            {
+                "output_dir": str(tmp_path / "rich-rendered"),
+                "title": "Rich Stdio Deck",
+                "slides": [
+                    {
+                        "title": "Visual Evidence",
+                        "layout": "figure_explanation",
+                        "learning_goal": "Use a real image in the generated slide.",
+                        "blocks": [
+                            {"type": "visual", "artifact_path": str(visual_path)},
+                            {"type": "claim", "text": "The image is rendered as evidence."},
+                            {"type": "source_citation", "source_page": 1},
+                        ],
+                    }
+                ],
+            },
+        )
 
     tool_names = {tool.name for tool in response.tools}
     assert tool_names == {
@@ -40,6 +60,7 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
         "AcademicSlidesHarness_RenderBeamer",
+        "AcademicSlidesHarness_RenderRichBeamer",
         "AcademicSlidesHarness_RenderSlidePreview",
         "AcademicSlidesHarness_RenderSourcePreview",
         "AcademicSlidesHarness_RenderZoomCrop",
@@ -47,7 +68,9 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
     }
     assert not result.isError
     assert not extract_result.isError
+    assert not rich_result.isError
     assert "Stdio extracted source text" in str(extract_result.content)
+    assert (tmp_path / "rich-rendered" / "deck.tex").exists()
     assert (tmp_path / "stdio-smoke").exists()
 
 
@@ -85,4 +108,11 @@ def _make_pdf(path: Path, *, text: str = "Stdio extracted source text") -> Path:
     page.insert_text((36, 60), text, fontsize=12)
     doc.save(path)
     doc.close()
+    return path
+
+
+def _make_png(path: Path) -> Path:
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 24, 16), False)
+    pixmap.clear_with(180)
+    pixmap.save(path)
     return path

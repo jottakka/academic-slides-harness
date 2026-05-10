@@ -14,6 +14,7 @@ from academic_slides_harness.mcp.server import (
     list_visual_artifacts,
     plan_deck,
     render_beamer,
+    render_rich_beamer,
     render_slide_preview,
     render_source_preview,
     render_zoom_crop,
@@ -39,6 +40,7 @@ def test_mcp_tool_registry_contains_initial_contract() -> None:
         "list_visual_artifacts",
         "plan_deck",
         "render_beamer",
+        "render_rich_beamer",
         "render_slide_preview",
         "render_source_preview",
         "render_zoom_crop",
@@ -93,6 +95,7 @@ def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
         "AcademicSlidesHarness_RenderBeamer",
+        "AcademicSlidesHarness_RenderRichBeamer",
         "AcademicSlidesHarness_RenderSlidePreview",
         "AcademicSlidesHarness_RenderSourcePreview",
         "AcademicSlidesHarness_RenderZoomCrop",
@@ -241,6 +244,83 @@ def test_render_beamer_returns_typed_error_when_slides_is_not_list(tmp_path: Pat
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "invalid_slides"
+
+
+def test_render_rich_beamer_embeds_visual_artifact_without_itemize(tmp_path: Path) -> None:
+    visual_path = tmp_path / "source.png"
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 24, 16), False)
+    pixmap.clear_with(200)
+    pixmap.save(visual_path)
+
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Evidence First",
+                "layout": "figure_explanation",
+                "learning_goal": "Tie the image to the measurement claim.",
+                "blocks": [
+                    {"type": "visual", "artifact_path": str(visual_path)},
+                    {"type": "claim", "text": "The visual artifact is the evidence."},
+                    {"type": "source_citation", "source_page": 2},
+                ],
+            }
+        ],
+    )
+
+    tex = Path(result.structured_content["deck_tex"]).read_text(encoding="utf-8")
+    assert result.ok is True
+    assert "\\includegraphics" in tex
+    assert "\\begin{itemize}" not in tex
+    assert result.structured_content["slide_count"] == 1
+    assert result.structured_content["assets"][0]["source_path"] == str(visual_path.resolve())
+    assert Path(result.structured_content["assets"][0]["deck_path"]).is_file()
+    assert "assets/" in tex
+
+
+def test_render_rich_beamer_returns_typed_error_for_missing_visual(
+    tmp_path: Path,
+) -> None:
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Missing Evidence",
+                "layout": "figure_explanation",
+                "blocks": [
+                    {"type": "visual", "artifact_path": str(tmp_path / "missing.png")},
+                    {"type": "claim", "text": "This should not render."},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "missing_visual_artifact"
+
+
+def test_render_rich_beamer_requires_visual_block_for_figure_layout(
+    tmp_path: Path,
+) -> None:
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "No Visual Block",
+                "layout": "figure_explanation",
+                "blocks": [
+                    {"type": "claim", "text": "This layout requires a visual block."},
+                    {"type": "source_citation", "source_page": 2},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_slide"
 
 
 def test_render_beamer_strips_numbered_body_markers(tmp_path: Path) -> None:

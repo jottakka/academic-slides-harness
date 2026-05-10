@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Annotated, Any
@@ -11,7 +12,15 @@ from pydantic import ValidationError
 from academic_slides_harness.core.models import RunManifest, ToolResult, sha256_file
 from academic_slides_harness.ingest.pdf import extract_pdf_page_text, inspect_pdf
 from academic_slides_harness.llm.providers import NoLLMProvider
-from academic_slides_harness.render.beamer import BeamerDeck, BeamerSlide, render_beamer_tex
+from academic_slides_harness.render.beamer import (
+    BeamerDeck,
+    BeamerSlide,
+    RichBeamerDeck,
+    RichBeamerSlide,
+    RichSlideBlock,
+    render_beamer_tex,
+    render_rich_beamer_tex,
+)
 from academic_slides_harness.render.tectonic import compile_tex_with_tectonic
 from academic_slides_harness.visualize.options import CropBox, RenderOptions, parse_page_selection
 from academic_slides_harness.visualize.preview import (
@@ -29,6 +38,7 @@ MCP_TOOL_NAMES = frozenset(
         "ingest_source",
         "plan_deck",
         "render_beamer",
+        "render_rich_beamer",
         "validate_run",
         "render_slide_preview",
         "render_source_preview",
@@ -190,6 +200,47 @@ def render_beamer(
         structured_content={
             "deck_tex": str(tex_path),
             "title": title,
+            "sha256": sha256_file(tex_path),
+        },
+    )
+
+
+def render_rich_beamer(
+    *,
+    output_dir: Annotated[str, "Directory where deck.tex and copied visual assets are written."],
+    title: Annotated[str, "Deck title."],
+    slides: Annotated[
+        list[dict[str, Any]],
+        "Rich slide objects with layout, optional learning_goal, and typed blocks.",
+    ],
+) -> ToolResult:
+    """Render a visually structured Beamer deck from a safe rich slide schema."""
+    if not isinstance(slides, list):
+        return ToolResult.error(
+            kind="invalid_slides",
+            message="Slides must be a list of rich slide objects.",
+            details={"actual_type": type(slides).__name__},
+        )
+    out_dir = Path(output_dir).resolve()
+    try:
+        parsed_slides, assets = _parse_rich_slides(slides=slides, output_dir=out_dir)
+    except RichSlideParseError as exc:
+        return ToolResult.error(kind=exc.kind, message=exc.message, details=exc.details)
+    except Exception as exc:
+        return _exception_result(kind="render_failed", exc=exc)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tex_path = out_dir / "deck.tex"
+    deck = RichBeamerDeck(title=title, slides=parsed_slides)
+    tex_path.write_text(render_rich_beamer_tex(deck), encoding="utf-8")
+    return ToolResult.success(
+        message="Rendered rich Beamer source",
+        structured_content={
+            "deck_tex": str(tex_path),
+            "title": title,
+            "slide_count": len(parsed_slides),
+            "layouts": [slide.layout for slide in parsed_slides],
+            "assets": assets,
             "sha256": sha256_file(tex_path),
         },
     )
@@ -429,6 +480,7 @@ def build_app() -> MCPApp:
         ingest_source,
         plan_deck,
         render_beamer,
+        render_rich_beamer,
         validate_run,
         render_slide_preview,
         render_source_preview,
@@ -468,6 +520,211 @@ def main(argv: list[str] | None = None) -> None:
 
 def _slug(title: str) -> str:
     return "".join(char.lower() if char.isalnum() else "-" for char in title).strip("-")
+
+
+class RichSlideParseError(ValueError):
+    def __init__(
+        self,
+        *,
+        kind: str,
+        message: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.message = message
+        self.details = details or {}
+
+
+def _parse_rich_slides(
+    *,
+    slides: list[dict[str, Any]],
+    output_dir: Path,
+) -> tuple[list[RichBeamerSlide], list[dict[str, Any]]]:
+    parsed_slides: list[RichBeamerSlide] = []
+    assets: list[dict[str, Any]] = []
+    assets_dir = output_dir / "assets"
+    for index, slide in enumerate(slides, start=1):
+        if not isinstance(slide, dict):
+            raise RichSlideParseError(
+                kind="invalid_slide",
+                message=f"Slide {index} must be an object.",
+                details={"slide_index": index, "actual_type": type(slide).__name__},
+            )
+        title = _required_str(slide, field="title", kind="invalid_slide", slide_index=index)
+        layout = _required_str(slide, field="layout", kind="invalid_layout", slide_index=index)
+        if layout not in {"hero_visual", "figure_explanation", "workflow_steps", "takeaway"}:
+            raise RichSlideParseError(
+                kind="invalid_layout",
+                message=f"Slide {index} uses unsupported layout: {layout}",
+                details={"slide_index": index, "layout": layout},
+            )
+        raw_blocks = slide.get("blocks")
+        if not isinstance(raw_blocks, list) or not raw_blocks:
+            raise RichSlideParseError(
+                kind="invalid_slide",
+                message=f"Slide {index} must include a non-empty blocks list.",
+                details={"slide_index": index},
+            )
+        parsed_blocks = [
+            _parse_rich_block(
+                block=block,
+                slide_index=index,
+                block_index=block_index,
+                assets_dir=assets_dir,
+                assets=assets,
+            )
+            for block_index, block in enumerate(raw_blocks, start=1)
+        ]
+        if layout in {"hero_visual", "figure_explanation"} and not any(
+            block.type == "visual" for block in parsed_blocks
+        ):
+            raise RichSlideParseError(
+                kind="invalid_slide",
+                message=f"Slide {index} layout {layout} requires a visual block.",
+                details={"slide_index": index, "layout": layout},
+            )
+        learning_goal = slide.get("learning_goal")
+        if learning_goal is not None and not isinstance(learning_goal, str):
+            raise RichSlideParseError(
+                kind="invalid_slide",
+                message=f"Slide {index} learning_goal must be a string when provided.",
+                details={"slide_index": index, "actual_type": type(learning_goal).__name__},
+            )
+        parsed_slides.append(
+            RichBeamerSlide(
+                title=title,
+                layout=layout,
+                learning_goal=learning_goal,
+                blocks=parsed_blocks,
+            )
+        )
+    return parsed_slides, assets
+
+
+def _parse_rich_block(
+    *,
+    block: Any,
+    slide_index: int,
+    block_index: int,
+    assets_dir: Path,
+    assets: list[dict[str, Any]],
+) -> RichSlideBlock:
+    if not isinstance(block, dict):
+        raise RichSlideParseError(
+            kind="invalid_block",
+            message=f"Slide {slide_index} block {block_index} must be an object.",
+            details={
+                "slide_index": slide_index,
+                "block_index": block_index,
+                "actual_type": type(block).__name__,
+            },
+        )
+    block_type = _required_str(
+        block,
+        field="type",
+        kind="invalid_block",
+        slide_index=slide_index,
+        block_index=block_index,
+    )
+    if block_type == "visual":
+        artifact_path = _required_str(
+            block,
+            field="artifact_path",
+            kind="invalid_block",
+            slide_index=slide_index,
+            block_index=block_index,
+        )
+        deck_asset_path, asset = _copy_visual_asset(Path(artifact_path), assets_dir=assets_dir)
+        assets.append(asset)
+        return RichSlideBlock(type="visual", artifact_path=deck_asset_path.as_posix())
+    if block_type in {"claim", "explanation"}:
+        text = _required_str(
+            block,
+            field="text",
+            kind="invalid_block",
+            slide_index=slide_index,
+            block_index=block_index,
+        )
+        return RichSlideBlock(type=block_type, text=text)
+    if block_type == "source_citation":
+        source_page = block.get("source_page")
+        if not isinstance(source_page, int) or source_page < 1:
+            raise RichSlideParseError(
+                kind="invalid_block",
+                message="source_citation blocks require a positive integer source_page.",
+                details={"slide_index": slide_index, "block_index": block_index},
+            )
+        return RichSlideBlock(type="source_citation", source_page=source_page)
+    if block_type == "steps":
+        items = block.get("items")
+        if not isinstance(items, list) or not all(isinstance(item, str) for item in items):
+            raise RichSlideParseError(
+                kind="invalid_block",
+                message="steps blocks require an items list of strings.",
+                details={"slide_index": slide_index, "block_index": block_index},
+            )
+        return RichSlideBlock(type="steps", items=items)
+    raise RichSlideParseError(
+        kind="invalid_block",
+        message=f"Unsupported rich slide block type: {block_type}",
+        details={"slide_index": slide_index, "block_index": block_index, "type": block_type},
+    )
+
+
+def _copy_visual_asset(source_path: Path, *, assets_dir: Path) -> tuple[Path, dict[str, Any]]:
+    resolved_source = source_path.resolve()
+    if not resolved_source.is_file():
+        raise RichSlideParseError(
+            kind="missing_visual_artifact",
+            message=f"Visual artifact not found: {source_path}",
+            details={"artifact_path": str(source_path)},
+        )
+    if resolved_source.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+        raise RichSlideParseError(
+            kind="unsupported_visual_artifact",
+            message=f"Unsupported visual artifact type: {resolved_source.suffix}",
+            details={"artifact_path": str(resolved_source)},
+        )
+    digest = sha256_file(resolved_source)
+    safe_stem = _slug(resolved_source.stem) or "visual"
+    deck_asset_path = assets_dir / f"{digest[:12]}-{safe_stem}{resolved_source.suffix.lower()}"
+    try:
+        assets_dir.mkdir(parents=True, exist_ok=True)
+        if not deck_asset_path.exists():
+            shutil.copy2(resolved_source, deck_asset_path)
+    except OSError as exc:
+        raise RichSlideParseError(
+            kind="asset_copy_failed",
+            message=str(exc),
+            details={"source_path": str(resolved_source), "deck_path": str(deck_asset_path)},
+        ) from exc
+    return Path("assets") / deck_asset_path.name, {
+        "source_path": str(resolved_source),
+        "deck_path": str(deck_asset_path),
+        "sha256": digest,
+    }
+
+
+def _required_str(
+    value: dict[str, Any],
+    *,
+    field: str,
+    kind: str,
+    slide_index: int,
+    block_index: int | None = None,
+) -> str:
+    field_value = value.get(field)
+    if not isinstance(field_value, str) or not field_value.strip():
+        details: dict[str, Any] = {"slide_index": slide_index, "field": field}
+        if block_index is not None:
+            details["block_index"] = block_index
+        raise RichSlideParseError(
+            kind=kind,
+            message=f"{field} must be a non-empty string.",
+            details=details,
+        )
+    return field_value.strip()
 
 
 def _png_metadata(path: Path) -> dict[str, Any]:

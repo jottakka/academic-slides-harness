@@ -72,6 +72,10 @@ chapter fixture and exercises ingestion, source previews, source zoom crops,
 deterministic planning, Beamer rendering, Tectonic compilation, deck previews,
 deck zoom crops, artifact listing, and pixel-level PNG validation.
 
+Current visual-quality work is tracked in
+`docs/design/visual-rich-deck-roadmap.md`. Agent handoff rules for this work live
+in `agents/visual-didactic-quality-handoff.md`.
+
 ## MCP Stdio
 
 The root `server.py` runs the Arcade MCP app with stdio by default:

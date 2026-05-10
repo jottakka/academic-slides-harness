@@ -1,9 +1,18 @@
 from pathlib import Path
 from subprocess import CompletedProcess, TimeoutExpired
 
+import fitz
 import pytest
 
-from academic_slides_harness.render.beamer import BeamerDeck, BeamerSlide, render_beamer_tex
+from academic_slides_harness.render.beamer import (
+    BeamerDeck,
+    BeamerSlide,
+    RichBeamerDeck,
+    RichBeamerSlide,
+    RichSlideBlock,
+    render_beamer_tex,
+    render_rich_beamer_tex,
+)
 from academic_slides_harness.render.tectonic import (
     compile_tex_with_tectonic,
     find_tectonic_executable,
@@ -45,6 +54,48 @@ def test_render_beamer_tex_escapes_latex_special_characters() -> None:
     ) in tex
 
 
+def test_render_rich_beamer_tex_supports_visual_explanation_without_itemize(
+    tmp_path: Path,
+) -> None:
+    visual_path = tmp_path / "source preview.png"
+    visual_path.write_bytes(b"not inspected by tex generation")
+
+    tex = render_rich_beamer_tex(
+        RichBeamerDeck(
+            title="Bioimage Workflow",
+            slides=[
+                RichBeamerSlide(
+                    title="Segment the nuclear rim",
+                    layout="figure_explanation",
+                    learning_goal="Connect a colorful microscopy image to a measurable boundary.",
+                    blocks=[
+                        RichSlideBlock(type="visual", artifact_path=str(visual_path)),
+                        RichSlideBlock(
+                            type="claim",
+                            text=(
+                                "The rim turns intensity dynamics into a reproducible measurement."
+                            ),
+                        ),
+                        RichSlideBlock(
+                            type="explanation",
+                            text=(
+                                "The visual contrast identifies where the workflow should measure."
+                            ),
+                        ),
+                        RichSlideBlock(type="source_citation", source_page=21),
+                    ],
+                )
+            ],
+        )
+    )
+
+    assert "\\includegraphics" in tex
+    assert "\\detokenize{" in tex
+    assert "\\begin{itemize}" not in tex
+    assert "Learning goal" in tex
+    assert "Source page 21" in tex
+
+
 @pytest.mark.latex
 def test_compile_tex_with_special_characters_when_tectonic_available(tmp_path: Path) -> None:
     tectonic = find_tectonic_executable()
@@ -60,6 +111,47 @@ def test_compile_tex_with_special_characters_when_tectonic_available(tmp_path: P
                     BeamerSlide(
                         title=r"Escaped {A} $x^2$",
                         bullets=[r"100% reproducible & file_name.tex #1"],
+                    )
+                ],
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    pdf_path = compile_tex_with_tectonic(tex_path=tex_path, output_dir=tmp_path / "build")
+
+    assert pdf_path.exists()
+    assert pdf_path.stat().st_size > 0
+
+
+@pytest.mark.latex
+def test_compile_rich_beamer_with_embedded_png_when_tectonic_available(
+    tmp_path: Path,
+) -> None:
+    tectonic = find_tectonic_executable()
+    if tectonic is None:
+        pytest.skip("Tectonic executable is not available")
+
+    image_path = tmp_path / "source.png"
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 80, 50), False)
+    pixmap.clear_with(180)
+    pixmap.save(image_path)
+
+    tex_path = tmp_path / "rich-deck.tex"
+    tex_path.write_text(
+        render_rich_beamer_tex(
+            RichBeamerDeck(
+                title="Visual Bioimage Deck",
+                slides=[
+                    RichBeamerSlide(
+                        title="Use the source image as evidence",
+                        layout="figure_explanation",
+                        learning_goal="Show the image before making the claim.",
+                        blocks=[
+                            RichSlideBlock(type="visual", artifact_path=str(image_path)),
+                            RichSlideBlock(type="claim", text="The figure is evidence."),
+                            RichSlideBlock(type="source_citation", source_page=4),
+                        ],
                     )
                 ],
             )

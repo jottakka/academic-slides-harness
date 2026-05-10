@@ -9,4 +9,17 @@ MCP work must use Arcade-compatible public signatures.
 - Avoid `from __future__ import annotations` in modules whose functions are registered directly with Arcade, because Arcade inspects runtime annotations.
 - Return structured content containing stable machine-readable fields.
 
-For live validation, use a real Arcade engine and worker. If unavailable, run in-process app registration and direct tool contract tests, then label live validation as skipped.
+For live validation in this repo, prefer the local stdio MCP path:
+
+```powershell
+uv run academic-slides-harness doctor arcade --json
+uv run pytest -m arcade_live -q
+```
+
+Here `arcade_live` means local stdio MCP runtime smoke, not HTTP engine/worker
+ports by default. Use HTTP checks only when the task explicitly validates an
+HTTP setup.
+
+When the task is to test MCP behavior, agents must not create scripts, wrappers,
+or direct Python calls as a substitute for calling the MCP tool. If MCP calls are
+unavailable or cancelled, stop and report the exact blocker.

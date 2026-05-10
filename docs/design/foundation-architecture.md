@@ -30,3 +30,23 @@ Tools must expose JSON-friendly parameters, structured outputs, and typed errors
 `validate_run` must validate required run paths and parse `manifest.json` against
 `RunManifest`; existence-only manifest checks are not enough evidence that a run
 is usable.
+
+## Visual/Didactic Deck Quality Direction
+
+The original `title + bullets` Beamer contract is a v0 compatibility path. It is
+useful for deterministic smoke tests, but insufficient for high-quality academic
+teaching decks because it forces agents into generic bullet summaries.
+
+The v1 visual deck direction is a rich slide contract:
+
+- named layouts such as `hero_visual`, `figure_explanation`, `workflow_steps`,
+  and `takeaway`;
+- typed blocks such as `visual`, `claim`, `explanation`, `steps`, and
+  `source_citation`;
+- real visual artifacts copied into the render output and embedded with
+  `\includegraphics`;
+- source-page or artifact evidence for claims;
+- rendered PNG previews and zoom crops as acceptance evidence.
+
+Agents may choose text, layout, and evidence, but production rendering stays
+deterministic and avoids raw LaTeX injection by default.

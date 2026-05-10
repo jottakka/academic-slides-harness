@@ -11,3 +11,21 @@ Use this workflow for non-trivial changes in the harness.
 7. Report commands run, failures fixed, skipped live checks, and residual risk.
 
 Tests are weak when they only assert that a function was called, only cover a mock, or do not prove a behavior the project relies on.
+
+## Visual Deck Ticket Flow
+
+Use smaller roles when the change affects slide quality:
+
+- Explorer: identify existing renderer, MCP contracts, fixtures, prompts, and quality gaps.
+- Implementer: own a narrow file set and start with a failing behavior test.
+- Visual reviewer: inspect rendered PNGs/crops and judge layout, density, hierarchy, and evidence.
+- MCP verifier: confirm stdio MCP tool discovery and at least one real tool call for MCP-facing changes.
+
+Required gates for render/MCP changes:
+
+- Targeted failing test before production code.
+- Targeted pass after implementation.
+- Real compile/render evidence when Tectonic is available.
+- `uv run pytest -m "not ollama and not arcade_live" -q`.
+- `uv run academic-slides-harness doctor arcade --json`.
+- `uv run pytest -m arcade_live -q`.
