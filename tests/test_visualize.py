@@ -39,6 +39,20 @@ def test_render_options_resolve_named_presets() -> None:
     assert explicit.scale == 2.5
 
 
+@pytest.mark.parametrize(
+    "options",
+    [
+        RenderOptions(resolution="bad"),
+        RenderOptions(dpi=-1),
+        RenderOptions(scale=0),
+        RenderOptions(zoom=0),
+    ],
+)
+def test_render_options_reject_invalid_values(options: RenderOptions) -> None:
+    with pytest.raises(ValueError):
+        options.resolved()
+
+
 def test_render_pdf_pages_creates_real_png_artifacts(tmp_path: Path) -> None:
     source = _make_pdf(tmp_path / "source.pdf")
 

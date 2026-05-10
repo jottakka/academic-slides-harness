@@ -165,16 +165,16 @@ def render_source_preview(
     except ValueError as exc:
         return _exception_result(kind="invalid_page_selection", exc=exc)
     try:
+        render_options = _parse_render_options(resolution=resolution, dpi=dpi, scale=scale)
+    except ValueError as exc:
+        return _exception_result(kind="invalid_render_options", exc=exc)
+    try:
         artifacts = render_pdf_pages(
             pdf_path=Path(source_pdf),
             output_dir=Path(output_dir),
             target="source_pdf",
             pages=selected_pages,
-            options=RenderOptions(
-                resolution=resolution,
-                dpi=dpi or None,
-                scale=scale or None,
-            ),
+            options=render_options,
         )
     except Exception as exc:
         return _exception_result(kind="preview_failed", exc=exc)
@@ -201,16 +201,16 @@ def render_slide_preview(
     except ValueError as exc:
         return _exception_result(kind="invalid_page_selection", exc=exc)
     try:
+        render_options = _parse_render_options(resolution=resolution, dpi=dpi, scale=scale)
+    except ValueError as exc:
+        return _exception_result(kind="invalid_render_options", exc=exc)
+    try:
         artifacts = render_pdf_pages(
             pdf_path=Path(deck_pdf),
             output_dir=Path(output_dir),
             target="deck_pdf",
             pages=selected_slides,
-            options=RenderOptions(
-                resolution=resolution,
-                dpi=dpi or None,
-                scale=scale or None,
-            ),
+            options=render_options,
         )
     except Exception as exc:
         return _exception_result(kind="preview_failed", exc=exc)
@@ -250,18 +250,22 @@ def render_zoom_crop(
     except ValueError as exc:
         return ToolResult.error(kind="invalid_crop", message=str(exc), details={"crop": crop})
     try:
+        render_options = _parse_render_options(
+            resolution=resolution,
+            dpi=dpi,
+            scale=scale,
+            zoom=zoom,
+        )
+    except ValueError as exc:
+        return _exception_result(kind="invalid_render_options", exc=exc)
+    try:
         artifact = render_crop(
             pdf_path=Path(pdf_path),
             output_dir=Path(output_dir),
             target=target,
             page=page,
             crop=crop_box,
-            options=RenderOptions(
-                resolution=resolution,
-                dpi=dpi or None,
-                scale=scale or None,
-                zoom=zoom,
-            ),
+            options=render_options,
         )
     except Exception as exc:
         return _exception_result(kind="crop_failed", exc=exc)
@@ -426,6 +430,23 @@ def _parse_crop_box(crop: dict) -> CropBox:
     if crop_box.width <= 0 or crop_box.height <= 0:
         raise ValueError("Crop width and height must be positive.")
     return crop_box
+
+
+def _parse_render_options(
+    *,
+    resolution: str,
+    dpi: int,
+    scale: float,
+    zoom: float = 1.0,
+) -> RenderOptions:
+    options = RenderOptions(
+        resolution=resolution,
+        dpi=dpi or None,
+        scale=scale or None,
+        zoom=zoom,
+    )
+    options.resolved()
+    return options
 
 
 def _visual_metadata_from_sidecar(path: Path) -> dict[str, Any] | None:

@@ -237,3 +237,17 @@ def test_render_source_preview_returns_typed_error_for_invalid_page_selection(
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "invalid_page_selection"
+
+
+def test_render_slide_preview_returns_typed_error_for_invalid_render_options(
+    tmp_path: Path,
+) -> None:
+    result = render_slide_preview(
+        deck_pdf=str(tmp_path / "missing.pdf"),
+        output_dir=str(tmp_path),
+        slides="1",
+        resolution="bad",
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_render_options"

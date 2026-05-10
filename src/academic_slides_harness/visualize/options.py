@@ -37,8 +37,19 @@ class RenderOptions:
     output_format: Literal["png"] = "png"
 
     def resolved(self) -> ResolvedRenderOptions:
-        dpi = self.dpi or PRESET_DPI[self.resolution or "review"]
+        preset = self.resolution or "review"
+        if preset not in PRESET_DPI:
+            raise ValueError("resolution must be one of: fast, review, print")
+        dpi = self.dpi or PRESET_DPI[preset]
         scale = self.scale if self.scale is not None else dpi / 72
+        if dpi <= 0:
+            raise ValueError("dpi must be positive")
+        if scale <= 0:
+            raise ValueError("scale must be positive")
+        if self.zoom <= 0:
+            raise ValueError("zoom must be positive")
+        if self.output_format != "png":
+            raise ValueError("output_format must be png")
         return ResolvedRenderOptions(
             dpi=dpi,
             scale=float(scale),
