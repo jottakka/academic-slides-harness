@@ -58,8 +58,19 @@ def parse_page_selection(selection: str | Iterable[int]) -> list[int]:
                 start_text, end_text = token.split("-", 1)
                 start = int(start_text)
                 end = int(end_text)
+                if end < start:
+                    raise ValueError("page selection ranges must be ascending")
                 pages.extend(range(start, end + 1))
             else:
                 pages.append(int(token))
-        return sorted(dict.fromkeys(pages))
-    return sorted(dict.fromkeys(int(page) for page in selection))
+        return _validate_pages(pages)
+    return _validate_pages(int(page) for page in selection)
+
+
+def _validate_pages(pages: Iterable[int]) -> list[int]:
+    selected = sorted(dict.fromkeys(pages))
+    if not selected:
+        raise ValueError("page selection must include at least one page")
+    if any(page < 1 for page in selected):
+        raise ValueError("page selection must use one-based positive page numbers")
+    return selected

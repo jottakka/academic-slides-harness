@@ -10,6 +10,8 @@ from academic_slides_harness.mcp.server import (
     list_visual_artifacts,
     plan_deck,
     render_beamer,
+    render_slide_preview,
+    render_source_preview,
     render_zoom_crop,
     validate_run,
 )
@@ -174,3 +176,29 @@ def test_render_zoom_crop_returns_typed_error_for_invalid_target(tmp_path: Path)
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "invalid_target"
+
+
+def test_render_slide_preview_returns_typed_error_for_invalid_page_selection(
+    tmp_path: Path,
+) -> None:
+    result = render_slide_preview(
+        deck_pdf=str(tmp_path / "missing.pdf"),
+        output_dir=str(tmp_path),
+        slides="0",
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_page_selection"
+
+
+def test_render_source_preview_returns_typed_error_for_invalid_page_selection(
+    tmp_path: Path,
+) -> None:
+    result = render_source_preview(
+        source_pdf=str(tmp_path / "missing.pdf"),
+        output_dir=str(tmp_path),
+        pages="0",
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_page_selection"

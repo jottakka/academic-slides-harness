@@ -161,11 +161,15 @@ def render_source_preview(
 ) -> ToolResult:
     """Render source PDF pages to PNG preview artifacts."""
     try:
+        selected_pages = parse_page_selection(pages)
+    except ValueError as exc:
+        return _exception_result(kind="invalid_page_selection", exc=exc)
+    try:
         artifacts = render_pdf_pages(
             pdf_path=Path(source_pdf),
             output_dir=Path(output_dir),
             target="source_pdf",
-            pages=parse_page_selection(pages),
+            pages=selected_pages,
             options=RenderOptions(
                 resolution=resolution,
                 dpi=dpi or None,
@@ -193,11 +197,15 @@ def render_slide_preview(
 ) -> ToolResult:
     """Render deck PDF slides to PNG preview artifacts."""
     try:
+        selected_slides = parse_page_selection(slides)
+    except ValueError as exc:
+        return _exception_result(kind="invalid_page_selection", exc=exc)
+    try:
         artifacts = render_pdf_pages(
             pdf_path=Path(deck_pdf),
             output_dir=Path(output_dir),
             target="deck_pdf",
-            pages=parse_page_selection(slides),
+            pages=selected_slides,
             options=RenderOptions(
                 resolution=resolution,
                 dpi=dpi or None,

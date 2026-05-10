@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import fitz
+import pytest
 
 from academic_slides_harness.visualize.options import CropBox, RenderOptions, parse_page_selection
 from academic_slides_harness.visualize.preview import render_pdf_pages, render_zoom_crop
@@ -19,6 +20,12 @@ def _make_pdf(path: Path) -> Path:
 def test_parse_page_selection_accepts_ranges_and_lists() -> None:
     assert parse_page_selection("1-3,5") == [1, 2, 3, 5]
     assert parse_page_selection([2, 4]) == [2, 4]
+
+
+@pytest.mark.parametrize("selection", ["0", "3-1", "", [1, 0]])
+def test_parse_page_selection_rejects_invalid_pages(selection: str | list[int]) -> None:
+    with pytest.raises(ValueError, match="page selection"):
+        parse_page_selection(selection)
 
 
 def test_render_options_resolve_named_presets() -> None:
