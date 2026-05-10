@@ -34,6 +34,20 @@ uv run ruff check .
 uv run pytest -m "not ollama and not arcade_live" -q
 ```
 
+## Local Diagnostics
+
+Use the Arcade doctor before live MCP work:
+
+```powershell
+uv run academic-slides-harness doctor arcade
+uv run academic-slides-harness doctor arcade --json
+```
+
+The command checks the Arcade CLI, local engine endpoint `127.0.0.1:9099`,
+and worker endpoint `127.0.0.1:8002` separately. A non-zero exit means at
+least one dependency is unavailable, so live `arcade_live` tests should remain
+skipped until the failing check is fixed.
+
 The initial MCP surface is implemented in `academic_slides_harness.mcp.server`.
 Visual tools generate PNG artifacts with absolute paths, dimensions, DPI, scale,
 zoom, and SHA-256 hashes so agents can inspect rendered evidence instead of
