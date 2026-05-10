@@ -239,6 +239,12 @@ def render_zoom_crop(
         return ToolResult.error(
             kind="invalid_target", message=f"Unsupported visual target: {target}"
         )
+    if page < 1:
+        return ToolResult.error(
+            kind="invalid_page_selection",
+            message="Crop page must be a one-based positive page number.",
+            details={"page": page},
+        )
     try:
         artifact = render_crop(
             pdf_path=Path(pdf_path),

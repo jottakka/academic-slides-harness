@@ -178,6 +178,19 @@ def test_render_zoom_crop_returns_typed_error_for_invalid_target(tmp_path: Path)
     assert result.structured_content["error"]["kind"] == "invalid_target"
 
 
+def test_render_zoom_crop_returns_typed_error_for_invalid_page(tmp_path: Path) -> None:
+    result = render_zoom_crop(
+        pdf_path=str(tmp_path / "missing.pdf"),
+        output_dir=str(tmp_path),
+        target="deck_pdf",
+        page=0,
+        crop={"x": 0, "y": 0, "width": 1, "height": 1},
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_page_selection"
+
+
 def test_render_slide_preview_returns_typed_error_for_invalid_page_selection(
     tmp_path: Path,
 ) -> None:
