@@ -70,7 +70,10 @@ def ingest_source(
     """Inspect a source PDF and return deterministic ingestion metadata."""
     if not Path(source_path).exists():
         return ToolResult.error(kind="missing_input", message=f"Source not found: {source_path}")
-    source = inspect_pdf(Path(source_path))
+    try:
+        source = inspect_pdf(Path(source_path))
+    except Exception as exc:
+        return _exception_result(kind="ingest_failed", exc=exc)
     return ToolResult.success(
         message=f"Ingested {source.pages} pages",
         structured_content=source.model_dump(mode="json"),

@@ -84,6 +84,16 @@ def test_ingest_source_returns_typed_error_for_missing_pdf(tmp_path: Path) -> No
     assert result.structured_content["error"]["kind"] == "missing_input"
 
 
+def test_ingest_source_returns_typed_error_for_invalid_pdf(tmp_path: Path) -> None:
+    invalid_pdf = tmp_path / "invalid.pdf"
+    invalid_pdf.write_text("not a pdf", encoding="utf-8")
+
+    result = ingest_source(source_path=str(invalid_pdf))
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "ingest_failed"
+
+
 def test_render_beamer_returns_tex_hash(tmp_path: Path) -> None:
     result = render_beamer(
         output_dir=str(tmp_path),
