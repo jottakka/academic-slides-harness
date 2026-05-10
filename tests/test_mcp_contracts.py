@@ -8,6 +8,7 @@ from academic_slides_harness.mcp.server import (
     build_app,
     compile_rendered_beamer,
     create_run,
+    extract_source_pages,
     ingest_source,
     list_visual_artifacts,
     plan_deck,
@@ -32,6 +33,7 @@ def test_mcp_tool_registry_contains_initial_contract() -> None:
     assert {
         "compile_rendered_beamer",
         "create_run",
+        "extract_source_pages",
         "ingest_source",
         "list_visual_artifacts",
         "plan_deck",
@@ -85,6 +87,7 @@ def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
     expected = {
         "AcademicSlidesHarness_CompileRenderedBeamer",
         "AcademicSlidesHarness_CreateRun",
+        "AcademicSlidesHarness_ExtractSourcePages",
         "AcademicSlidesHarness_IngestSource",
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
@@ -140,6 +143,41 @@ def test_ingest_source_returns_typed_error_for_directory(tmp_path: Path) -> None
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "missing_input"
+
+
+def test_extract_source_pages_returns_page_text_for_mcp_planning(tmp_path: Path) -> None:
+    source = _make_pdf(tmp_path / "source.pdf")
+
+    result = extract_source_pages(source_pdf=str(source), pages="1", max_chars_per_page=50)
+
+    assert result.ok is True
+    assert result.structured_content["source_pdf"] == str(source.resolve())
+    assert result.structured_content["page_count"] == 1
+    pages = result.structured_content["pages"]
+    assert pages == [
+        {
+            "page": 1,
+            "text": "Academic Slides Harness",
+            "char_count": len("Academic Slides Harness"),
+            "truncated": False,
+        }
+    ]
+
+
+def test_extract_source_pages_returns_typed_error_for_missing_pdf(tmp_path: Path) -> None:
+    result = extract_source_pages(source_pdf=str(tmp_path / "missing.pdf"), pages="1")
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "missing_input"
+
+
+def test_extract_source_pages_returns_typed_error_for_invalid_page_selection(
+    tmp_path: Path,
+) -> None:
+    result = extract_source_pages(source_pdf=str(tmp_path / "missing.pdf"), pages="0")
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_page_selection"
 
 
 def test_render_beamer_returns_tex_hash(tmp_path: Path) -> None:

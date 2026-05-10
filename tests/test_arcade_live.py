@@ -8,6 +8,7 @@ import pytest
 EXPECTED_TOOL_NAMES = {
     "AcademicSlidesHarness_CompileRenderedBeamer",
     "AcademicSlidesHarness_CreateRun",
+    "AcademicSlidesHarness_ExtractSourcePages",
     "AcademicSlidesHarness_IngestSource",
     "AcademicSlidesHarness_ListVisualArtifacts",
     "AcademicSlidesHarness_PlanDeck",

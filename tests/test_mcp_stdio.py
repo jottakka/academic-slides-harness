@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+import fitz
 import pytest
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -9,6 +10,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 @pytest.mark.asyncio
 async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
     server_entrypoint = Path(__file__).resolve().parents[1] / "server.py"
+    source_pdf = _make_pdf(tmp_path / "source.pdf")
     server = StdioServerParameters(
         command=sys.executable,
         args=[str(server_entrypoint), "stdio"],
@@ -24,11 +26,16 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
             "AcademicSlidesHarness_CreateRun",
             {"base_dir": str(tmp_path), "title": "Stdio Smoke"},
         )
+        extract_result = await session.call_tool(
+            "AcademicSlidesHarness_ExtractSourcePages",
+            {"source_pdf": str(source_pdf), "pages": "1", "max_chars_per_page": 200},
+        )
 
     tool_names = {tool.name for tool in response.tools}
     assert tool_names == {
         "AcademicSlidesHarness_CompileRenderedBeamer",
         "AcademicSlidesHarness_CreateRun",
+        "AcademicSlidesHarness_ExtractSourcePages",
         "AcademicSlidesHarness_IngestSource",
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
@@ -39,4 +46,15 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
         "AcademicSlidesHarness_ValidateRun",
     }
     assert not result.isError
+    assert not extract_result.isError
+    assert "Stdio extracted source text" in str(extract_result.content)
     assert (tmp_path / "stdio-smoke").exists()
+
+
+def _make_pdf(path: Path) -> Path:
+    doc = fitz.open()
+    page = doc.new_page(width=200, height=120)
+    page.insert_text((36, 60), "Stdio extracted source text", fontsize=12)
+    doc.save(path)
+    doc.close()
+    return path

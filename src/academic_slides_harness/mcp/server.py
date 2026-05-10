@@ -9,7 +9,7 @@ from PIL import Image
 from pydantic import ValidationError
 
 from academic_slides_harness.core.models import RunManifest, ToolResult, sha256_file
-from academic_slides_harness.ingest.pdf import inspect_pdf
+from academic_slides_harness.ingest.pdf import extract_pdf_page_text, inspect_pdf
 from academic_slides_harness.llm.providers import NoLLMProvider
 from academic_slides_harness.render.beamer import BeamerDeck, BeamerSlide, render_beamer_tex
 from academic_slides_harness.render.tectonic import compile_tex_with_tectonic
@@ -25,6 +25,7 @@ MCP_TOOL_NAMES = frozenset(
     {
         "compile_rendered_beamer",
         "create_run",
+        "extract_source_pages",
         "ingest_source",
         "plan_deck",
         "render_beamer",
@@ -84,6 +85,44 @@ def ingest_source(
     return ToolResult.success(
         message=f"Ingested {source.pages} pages",
         structured_content=source.model_dump(mode="json"),
+    )
+
+
+def extract_source_pages(
+    *,
+    source_pdf: Annotated[str, "Path to the source PDF to extract text from."],
+    pages: Annotated[str, "One-based page selection, for example '1-3,5'."],
+    max_chars_per_page: Annotated[
+        int, "Maximum number of extracted text characters to return per page."
+    ] = 2000,
+) -> ToolResult:
+    """Extract deterministic page text excerpts from a source PDF for deck planning."""
+    try:
+        selected_pages = parse_page_selection(pages)
+    except ValueError as exc:
+        return _exception_result(kind="invalid_page_selection", exc=exc)
+    if max_chars_per_page < 1:
+        return ToolResult.error(
+            kind="invalid_options",
+            message="max_chars_per_page must be a positive integer.",
+            details={"max_chars_per_page": max_chars_per_page},
+        )
+    missing_input = _missing_file_result(path=source_pdf, label="Source PDF")
+    if missing_input is not None:
+        return missing_input
+    try:
+        structured_content = extract_pdf_page_text(
+            Path(source_pdf),
+            pages=selected_pages,
+            max_chars_per_page=max_chars_per_page,
+        )
+    except ValueError as exc:
+        return _exception_result(kind="invalid_page_selection", exc=exc)
+    except Exception as exc:
+        return _exception_result(kind="extract_failed", exc=exc)
+    return ToolResult.success(
+        message=f"Extracted text from {len(structured_content['pages'])} pages",
+        structured_content=structured_content,
     )
 
 
@@ -386,6 +425,7 @@ def build_app() -> MCPApp:
     app = MCPApp(name="academic_slides_harness")
     for tool in [
         create_run,
+        extract_source_pages,
         ingest_source,
         plan_deck,
         render_beamer,
