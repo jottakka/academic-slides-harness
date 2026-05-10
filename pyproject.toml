@@ -50,6 +50,6 @@ addopts = "-ra"
 testpaths = ["tests"]
 markers = [
     "ollama: requires a running local Ollama server",
-    "arcade_live: requires a live Arcade engine/worker stack",
+    "arcade_live: requires local Arcade MCP stdio runtime",
     "latex: compiles LaTeX with Tectonic",
 ]
