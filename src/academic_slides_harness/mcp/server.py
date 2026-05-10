@@ -246,18 +246,16 @@ def render_zoom_crop(
             details={"page": page},
         )
     try:
+        crop_box = _parse_crop_box(crop)
+    except ValueError as exc:
+        return ToolResult.error(kind="invalid_crop", message=str(exc), details={"crop": crop})
+    try:
         artifact = render_crop(
             pdf_path=Path(pdf_path),
             output_dir=Path(output_dir),
             target=target,
             page=page,
-            crop=CropBox(
-                x=float(crop["x"]),
-                y=float(crop["y"]),
-                width=float(crop["width"]),
-                height=float(crop["height"]),
-                normalized=bool(crop.get("normalized", True)),
-            ),
+            crop=crop_box,
             options=RenderOptions(
                 resolution=resolution,
                 dpi=dpi or None,
@@ -408,6 +406,26 @@ def _body_to_bullets(body: str) -> list[str] | None:
     return [
         " ".join(words[index : index + chunk_size]) for index in range(0, len(words), chunk_size)
     ]
+
+
+def _parse_crop_box(crop: dict) -> CropBox:
+    required_fields = {"x", "y", "width", "height"}
+    missing_fields = sorted(required_fields.difference(crop))
+    if missing_fields:
+        raise ValueError(f"Crop is missing required fields: {', '.join(missing_fields)}")
+    try:
+        crop_box = CropBox(
+            x=float(crop["x"]),
+            y=float(crop["y"]),
+            width=float(crop["width"]),
+            height=float(crop["height"]),
+            normalized=bool(crop.get("normalized", True)),
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Crop fields x, y, width, and height must be numeric.") from exc
+    if crop_box.width <= 0 or crop_box.height <= 0:
+        raise ValueError("Crop width and height must be positive.")
+    return crop_box
 
 
 def _visual_metadata_from_sidecar(path: Path) -> dict[str, Any] | None:

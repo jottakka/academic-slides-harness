@@ -191,6 +191,28 @@ def test_render_zoom_crop_returns_typed_error_for_invalid_page(tmp_path: Path) -
     assert result.structured_content["error"]["kind"] == "invalid_page_selection"
 
 
+def test_render_zoom_crop_returns_typed_error_for_invalid_crop_shape(tmp_path: Path) -> None:
+    missing_width = render_zoom_crop(
+        pdf_path=str(tmp_path / "missing.pdf"),
+        output_dir=str(tmp_path),
+        target="deck_pdf",
+        page=1,
+        crop={"x": 0, "y": 0, "height": 1},
+    )
+    non_positive_height = render_zoom_crop(
+        pdf_path=str(tmp_path / "missing.pdf"),
+        output_dir=str(tmp_path),
+        target="deck_pdf",
+        page=1,
+        crop={"x": 0, "y": 0, "width": 1, "height": 0},
+    )
+
+    assert missing_width.ok is False
+    assert missing_width.structured_content["error"]["kind"] == "invalid_crop"
+    assert non_positive_height.ok is False
+    assert non_positive_height.structured_content["error"]["kind"] == "invalid_crop"
+
+
 def test_render_slide_preview_returns_typed_error_for_invalid_page_selection(
     tmp_path: Path,
 ) -> None:
