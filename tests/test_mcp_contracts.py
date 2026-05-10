@@ -12,6 +12,7 @@ from academic_slides_harness.mcp.server import (
     create_run,
     extract_source_pages,
     ingest_source,
+    list_theme_presets,
     list_visual_artifacts,
     plan_deck,
     render_beamer,
@@ -22,6 +23,7 @@ from academic_slides_harness.mcp.server import (
     render_zoom_crop,
     validate_run,
 )
+from academic_slides_harness.render.theme import ThemePresetError
 
 
 def _make_pdf(path: Path) -> Path:
@@ -39,6 +41,7 @@ def test_mcp_tool_registry_contains_initial_contract() -> None:
         "create_run",
         "extract_source_pages",
         "ingest_source",
+        "list_theme_presets",
         "list_visual_artifacts",
         "plan_deck",
         "render_beamer",
@@ -61,6 +64,7 @@ def test_mcp_resource_registry_contains_rich_visual_deck_guidance() -> None:
         "academic-slides://prompts/review_visual_artifacts",
         "academic-slides://prompts/visual_quality_rubric",
         "academic-slides://schemas/rich_slide_plan",
+        "academic-slides://themes/default_visual_academic",
     } == MCP_RESOURCE_URIS
 
 
@@ -108,6 +112,7 @@ def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
         "AcademicSlidesHarness_CreateRun",
         "AcademicSlidesHarness_ExtractSourcePages",
         "AcademicSlidesHarness_IngestSource",
+        "AcademicSlidesHarness_ListThemePresets",
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
         "AcademicSlidesHarness_RenderBeamer",
@@ -168,6 +173,61 @@ def test_render_layout_placeholders_returns_typed_error_for_unknown_layout(
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "invalid_layout"
+
+
+def test_list_theme_presets_returns_default_visual_academic_preset() -> None:
+    result = list_theme_presets()
+
+    assert result.ok is True
+    presets = result.structured_content["presets"]
+    assert len(presets) >= 1
+    default = next(preset for preset in presets if preset["name"] == "default_visual_academic")
+    assert default["resource_uri"] == "academic-slides://themes/default_visual_academic"
+    assert default["sha256"]
+    assert default["colors"]["primary"] == "#1F4E79"
+    assert default["logo"]["path"] is None
+
+
+def test_list_theme_presets_returns_typed_error_when_default_preset_is_invalid(
+    monkeypatch,
+) -> None:
+    def raise_missing_preset(name_or_path: object) -> dict[str, object]:
+        raise ThemePresetError(
+            "missing_preset",
+            "missing default preset",
+            details={"name": str(name_or_path)},
+        )
+
+    monkeypatch.setattr(
+        "academic_slides_harness.mcp.server.load_theme_preset",
+        raise_missing_preset,
+    )
+
+    result = list_theme_presets()
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "missing_preset"
+
+
+def test_build_app_theme_resource_does_not_crash_when_preset_is_invalid(
+    monkeypatch,
+) -> None:
+    def raise_missing_preset(name_or_path: object) -> dict[str, object]:
+        raise ThemePresetError(
+            "missing_preset",
+            "missing default preset",
+            details={"name": str(name_or_path)},
+        )
+
+    monkeypatch.setattr(
+        "academic_slides_harness.mcp.server.load_theme_preset",
+        raise_missing_preset,
+    )
+
+    app = build_app()
+    resources = {str(resource.uri): handler for resource, handler in app._initial_resources}
+
+    assert "academic-slides://themes/default_visual_academic" in resources
 
 
 def test_compile_rendered_beamer_returns_typed_timeout_error(

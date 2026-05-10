@@ -57,9 +57,13 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
                 "layouts": "figure_explanation",
             },
         )
+        theme_result = await session.call_tool("AcademicSlidesHarness_ListThemePresets", {})
         resources_response = await session.list_resources()
         resource_result = await session.read_resource(
             "academic-slides://layouts/rich_slide_patterns"
+        )
+        theme_resource_result = await session.read_resource(
+            "academic-slides://themes/default_visual_academic"
         )
 
     tool_names = {tool.name for tool in response.tools}
@@ -68,6 +72,7 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
         "AcademicSlidesHarness_CreateRun",
         "AcademicSlidesHarness_ExtractSourcePages",
         "AcademicSlidesHarness_IngestSource",
+        "AcademicSlidesHarness_ListThemePresets",
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
         "AcademicSlidesHarness_RenderBeamer",
@@ -82,9 +87,14 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
     assert not extract_result.isError
     assert not rich_result.isError
     assert not placeholder_result.isError
+    assert not theme_result.isError
     assert "Stdio extracted source text" in str(extract_result.content)
     assert "figure_explanation" in str(resource_result.contents)
+    assert "default_visual_academic" in str(theme_resource_result.contents)
     assert "academic-slides://schemas/rich_slide_plan" in {
+        str(resource.uri) for resource in resources_response.resources
+    }
+    assert "academic-slides://themes/default_visual_academic" in {
         str(resource.uri) for resource in resources_response.resources
     }
     assert (tmp_path / "rich-rendered" / "deck.tex").exists()

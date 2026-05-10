@@ -71,6 +71,10 @@ Rich visual deck guidance is exposed as MCP resources:
 `academic-slides://schemas/rich_slide_plan`, and visual/didactic rubric prompts.
 Use `RenderLayoutPlaceholders` to generate PNG placeholder previews for the
 supported rich layouts before asking an agent to build a deck.
+Reusable deck styling is exposed through `ListThemePresets` and
+`academic-slides://themes/default_visual_academic`. Theme presets live under
+`src/academic_slides_harness/templates/themes/` and carry colors, fonts,
+optional logo config, Beamer defaults, and layout defaults.
 
 The advanced book E2E test uses a checked-in open-access image-processing
 chapter fixture and exercises ingestion, source previews, source zoom crops,

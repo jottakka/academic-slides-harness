@@ -1,0 +1,37 @@
+{
+  "name": "default_visual_academic",
+  "version": 1,
+  "description": "Portable default theme preset for visual academic Beamer decks.",
+  "colors": {
+    "primary": "#1F4E79",
+    "primary_dark": "#12344F",
+    "accent": "#C87F2A",
+    "background": "#FFFFFF",
+    "surface": "#EAF2F8",
+    "text": "#111827",
+    "muted_text": "#52606D"
+  },
+  "fonts": {
+    "heading": "TeX Gyre Heros",
+    "body": "TeX Gyre Pagella",
+    "mono": "Inconsolata"
+  },
+  "logo": {
+    "path": null,
+    "placement": "top_right",
+    "max_width": 0.16,
+    "max_height": 0.08
+  },
+  "beamer": {
+    "theme": "Boadilla",
+    "color_theme": "default",
+    "aspect_ratio": "169",
+    "navigation_symbols": false
+  },
+  "layout_defaults": {
+    "visual_density": "standard",
+    "preview_profile": "review",
+    "max_bullets": 4,
+    "prefer_visual_first": true
+  }
+}

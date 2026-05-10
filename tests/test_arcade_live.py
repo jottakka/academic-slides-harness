@@ -10,6 +10,7 @@ EXPECTED_TOOL_NAMES = {
     "AcademicSlidesHarness_CreateRun",
     "AcademicSlidesHarness_ExtractSourcePages",
     "AcademicSlidesHarness_IngestSource",
+    "AcademicSlidesHarness_ListThemePresets",
     "AcademicSlidesHarness_ListVisualArtifacts",
     "AcademicSlidesHarness_PlanDeck",
     "AcademicSlidesHarness_RenderBeamer",

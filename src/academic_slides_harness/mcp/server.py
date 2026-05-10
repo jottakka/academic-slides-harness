@@ -29,6 +29,11 @@ from academic_slides_harness.render.layout_catalog import (
     rich_slide_schema_markdown,
 )
 from academic_slides_harness.render.tectonic import compile_tex_with_tectonic
+from academic_slides_harness.render.theme import (
+    ThemePresetError,
+    load_theme_preset,
+    theme_preset_path,
+)
 from academic_slides_harness.visualize.options import CropBox, RenderOptions, parse_page_selection
 from academic_slides_harness.visualize.preview import (
     render_pdf_pages,
@@ -43,6 +48,7 @@ MCP_TOOL_NAMES = frozenset(
         "create_run",
         "extract_source_pages",
         "ingest_source",
+        "list_theme_presets",
         "plan_deck",
         "render_beamer",
         "render_layout_placeholders",
@@ -65,8 +71,11 @@ MCP_RESOURCE_URIS = frozenset(
         "academic-slides://prompts/review_visual_artifacts",
         "academic-slides://prompts/visual_quality_rubric",
         "academic-slides://schemas/rich_slide_plan",
+        "academic-slides://themes/default_visual_academic",
     }
 )
+
+DEFAULT_THEME_PRESET_NAME = "default_visual_academic"
 
 
 def create_run(
@@ -318,6 +327,20 @@ def render_layout_placeholders(
     )
 
 
+def list_theme_presets() -> ToolResult:
+    """List deterministic deck theme presets available to MCP agents."""
+    try:
+        preset = _theme_preset_payload(DEFAULT_THEME_PRESET_NAME)
+    except ThemePresetError as exc:
+        return ToolResult.error(kind=exc.kind, message=str(exc), details=exc.details)
+    except OSError as exc:
+        return _exception_result(kind="theme_preset_failed", exc=exc)
+    return ToolResult.success(
+        message="Listed theme presets",
+        structured_content={"presets": [preset]},
+    )
+
+
 def validate_run(
     *,
     run_dir: Annotated[str, "Run directory to validate."],
@@ -550,6 +573,7 @@ def build_app() -> MCPApp:
         create_run,
         extract_source_pages,
         ingest_source,
+        list_theme_presets,
         plan_deck,
         render_beamer,
         render_layout_placeholders,
@@ -569,6 +593,12 @@ def build_app() -> MCPApp:
             name=name,
             description=description,
         )
+    app.add_text_resource(
+        "academic-slides://themes/default_visual_academic",
+        text=_theme_preset_resource_text(DEFAULT_THEME_PRESET_NAME),
+        name="default_visual_academic_theme",
+        description="Default reusable visual academic deck theme preset.",
+    )
     return app
 
 
@@ -889,6 +919,38 @@ def _copy_visual_asset(source_path: Path, *, assets_dir: Path) -> tuple[Path, di
     }
 
 
+def _theme_preset_payload(name: str) -> dict[str, Any]:
+    preset_path = theme_preset_path(name)
+    preset = load_theme_preset(name)
+    return {
+        **preset,
+        "path": str(preset_path),
+        "sha256": sha256_file(preset_path),
+        "resource_uri": f"academic-slides://themes/{preset['name']}",
+    }
+
+
+def _theme_preset_resource_text(name: str) -> str:
+    try:
+        return json.dumps(_theme_preset_payload(name), indent=2)
+    except ThemePresetError as exc:
+        return json.dumps(
+            {
+                "ok": False,
+                "error": {"kind": exc.kind, "message": str(exc), "details": exc.details},
+            },
+            indent=2,
+        )
+    except OSError as exc:
+        return json.dumps(
+            {
+                "ok": False,
+                "error": {"kind": "theme_preset_failed", "message": str(exc), "details": {}},
+            },
+            indent=2,
+        )
+
+
 def _required_str(
     value: dict[str, Any],
     *,
@@ -1101,6 +1163,8 @@ _DRAFT_VISUAL_DECK_PROMPT = "\n".join(
         "",
         "Hard rules:",
         "- Read `academic-slides://layouts/rich_slide_patterns` before choosing layouts.",
+        "- Read `academic-slides://themes/default_visual_academic` before choosing colors.",
+        "- Call `ListThemePresets` before proposing custom branding.",
         "- Use `RenderLayoutPlaceholders` when you need to see the spatial structure.",
         "- Use `RenderSourcePreview` and `RenderZoomCrop` before selecting visual evidence.",
         "- Call `RenderRichBeamer`; do not fall back to generic bullet-summary decks.",

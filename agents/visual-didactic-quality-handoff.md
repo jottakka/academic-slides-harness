@@ -61,7 +61,7 @@ Ticket 3:
 
 Ticket 4:
 
-- `templates/themes/`
+- `src/academic_slides_harness/templates/themes/`
 - `src/academic_slides_harness/mcp/server.py`
 - `src/academic_slides_harness/render/`
 - `tests/test_mcp_contracts.py`
@@ -135,19 +135,20 @@ Hard rules:
 Required flow:
 1. CreateRun.
 2. IngestSource.
-3. Read resources: rich slide schema, layout patterns, visual rubric, didactic rubric.
-4. RenderLayoutPlaceholders for candidate rich layouts.
-5. RenderSourcePreview for visual pages.
-6. RenderZoomCrop for at least one visual detail.
-7. ExtractSourcePages for the selected pages.
-8. Reject or replace source images that are too small, illegible, low contrast, or mostly embedded PDF text.
-9. Keep titles, claims, explanations, and steps within the rich layout limits.
-10. RenderRichBeamer using source visuals and evidence-backed blocks.
-11. CompileRenderedBeamer.
-12. RenderSlidePreview for all slides.
-13. RenderZoomCrop for at least one deck slide.
-14. ListVisualArtifacts.
-15. ValidateRun.
+3. Read resources: rich slide schema, layout patterns, theme preset, visual rubric, didactic rubric.
+4. ListThemePresets and choose the default theme unless the user requested another style.
+5. RenderLayoutPlaceholders for candidate rich layouts.
+6. RenderSourcePreview for visual pages.
+7. RenderZoomCrop for at least one visual detail.
+8. ExtractSourcePages for the selected pages.
+9. Reject or replace source images that are too small, illegible, low contrast, or mostly embedded PDF text.
+10. Keep titles, claims, explanations, and steps within the rich layout limits.
+11. RenderRichBeamer using source visuals and evidence-backed blocks.
+12. CompileRenderedBeamer.
+13. RenderSlidePreview for all slides.
+14. RenderZoomCrop for at least one deck slide.
+15. ListVisualArtifacts.
+16. ValidateRun.
 
 Final report:
 - run_dir

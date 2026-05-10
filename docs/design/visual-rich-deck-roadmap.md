@@ -152,6 +152,10 @@ Acceptance criteria:
 Goal: store reusable deck styling decisions so agents do not hard-code colors,
 logos, fonts, citation style, or visual tone per run.
 
+Status: implemented as a preset loader, default JSON preset, MCP resource, and
+`ListThemePresets` discovery tool. `RenderRichBeamer` does not consume presets
+yet; that should stay as a later rendering ticket with visual preview evidence.
+
 Recommended shape:
 
 - Add versioned JSON presets under `templates/themes/`.
@@ -172,6 +176,17 @@ Acceptance criteria:
 - At least one default preset is documented and exposed as a resource.
 - Missing logo files return a typed error only when a preset references a logo.
 - Existing decks keep their current default theme unless a preset is supplied.
+
+Implemented contract:
+
+- Default preset path:
+  `src/academic_slides_harness/templates/themes/default_visual_academic.json`.
+- MCP resource: `academic-slides://themes/default_visual_academic`.
+- MCP tool: `ListThemePresets`.
+- Logo config is an object with `path`, `placement`, `max_width`, and
+  `max_height`; the default preset uses `path: null` so no logo file is required.
+- Preset responses include resource URI, absolute preset path, SHA-256 hash,
+  colors, fonts, Beamer defaults, logo config, and layout defaults.
 
 ## Ticket 5: Image Sanitization Before Embed
 
