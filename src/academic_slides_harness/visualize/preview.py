@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 from pathlib import Path
 from typing import Literal
@@ -17,6 +18,7 @@ def render_pdf_pages(
     target: Literal["source_pdf", "deck_pdf"],
     pages: list[int],
     options: RenderOptions,
+    overwrite: bool = False,
 ) -> list[ScreenshotArtifact]:
     resolved = options.resolved()
     _ensure_pdf_file(pdf_path)
@@ -32,6 +34,7 @@ def render_pdf_pages(
                 alpha=False,
             )
             output_path = output_dir / f"{target}-p{page_number}-{resolved.dpi}dpi.png"
+            _ensure_can_write_artifact(output_path=output_path, overwrite=overwrite)
             pixmap.save(output_path)
             artifact = ScreenshotArtifact.from_file(
                 path=output_path,
@@ -56,6 +59,7 @@ def render_zoom_crop(
     page: int,
     crop: CropBox,
     options: RenderOptions,
+    overwrite: bool = False,
 ) -> ScreenshotArtifact:
     resolved = options.resolved()
     _ensure_pdf_file(pdf_path)
@@ -72,6 +76,7 @@ def render_zoom_crop(
             alpha=False,
         )
         output_path = output_dir / f"{target}-p{page}-crop-{resolved.dpi}dpi-z{resolved.zoom:g}.png"
+        _ensure_can_write_artifact(output_path=output_path, overwrite=overwrite)
         pixmap.save(output_path)
         artifact = ScreenshotArtifact.from_file(
             path=output_path,
@@ -110,6 +115,11 @@ def _validate_pages_within_document(*, pages: list[int], page_count: int) -> Non
     invalid_pages = [page for page in pages if page < 1 or page > page_count]
     if invalid_pages:
         raise ValueError(f"Page selection {invalid_pages} is outside PDF page count {page_count}.")
+
+
+def _ensure_can_write_artifact(*, output_path: Path, overwrite: bool) -> None:
+    if output_path.exists() and not overwrite:
+        raise FileExistsError(errno.EEXIST, "PNG artifact already exists", str(output_path))
 
 
 def _write_sidecar(artifact: ScreenshotArtifact) -> None:

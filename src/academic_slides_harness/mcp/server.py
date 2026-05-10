@@ -190,6 +190,9 @@ def render_source_preview(
     resolution: Annotated[str, "Resolution preset: fast, review, or print."] = "review",
     dpi: Annotated[int, "Explicit DPI override; use 0 to keep the preset."] = 0,
     scale: Annotated[float, "Explicit render scale override; use 0 to derive from DPI."] = 0.0,
+    overwrite: Annotated[
+        bool, "Whether an existing PNG artifact at the target path may be overwritten."
+    ] = False,
 ) -> ToolResult:
     """Render source PDF pages to PNG preview artifacts."""
     try:
@@ -210,7 +213,10 @@ def render_source_preview(
             target="source_pdf",
             pages=selected_pages,
             options=render_options,
+            overwrite=overwrite,
         )
+    except FileExistsError as exc:
+        return _exception_result(kind="artifact_exists", exc=exc)
     except Exception as exc:
         return _exception_result(kind="preview_failed", exc=exc)
     return ToolResult.success(
@@ -229,6 +235,9 @@ def render_slide_preview(
     resolution: Annotated[str, "Resolution preset: fast, review, or print."] = "review",
     dpi: Annotated[int, "Explicit DPI override; use 0 to keep the preset."] = 0,
     scale: Annotated[float, "Explicit render scale override; use 0 to derive from DPI."] = 0.0,
+    overwrite: Annotated[
+        bool, "Whether an existing PNG artifact at the target path may be overwritten."
+    ] = False,
 ) -> ToolResult:
     """Render deck PDF slides to PNG preview artifacts."""
     try:
@@ -249,7 +258,10 @@ def render_slide_preview(
             target="deck_pdf",
             pages=selected_slides,
             options=render_options,
+            overwrite=overwrite,
         )
+    except FileExistsError as exc:
+        return _exception_result(kind="artifact_exists", exc=exc)
     except Exception as exc:
         return _exception_result(kind="preview_failed", exc=exc)
     return ToolResult.success(
@@ -271,6 +283,9 @@ def render_zoom_crop(
     dpi: Annotated[int, "Explicit DPI override; use 0 to keep the preset."] = 0,
     scale: Annotated[float, "Explicit render scale override; use 0 to derive from DPI."] = 0.0,
     zoom: Annotated[float, "Zoom multiplier applied to the crop render."] = 2.0,
+    overwrite: Annotated[
+        bool, "Whether an existing PNG artifact at the target path may be overwritten."
+    ] = False,
 ) -> ToolResult:
     """Render a zoomed crop from a source or deck PDF for visual QA."""
     if target not in {"source_pdf", "deck_pdf"}:
@@ -307,7 +322,10 @@ def render_zoom_crop(
             page=page,
             crop=crop_box,
             options=render_options,
+            overwrite=overwrite,
         )
+    except FileExistsError as exc:
+        return _exception_result(kind="artifact_exists", exc=exc)
     except Exception as exc:
         return _exception_result(kind="crop_failed", exc=exc)
     return ToolResult.success(
@@ -351,6 +369,8 @@ def compile_rendered_beamer(
         return missing_input
     try:
         pdf_path = compile_tex_with_tectonic(tex_path=Path(tex_path), output_dir=Path(output_dir))
+    except TimeoutError as exc:
+        return _exception_result(kind="compile_timeout", exc=exc)
     except Exception as exc:
         return _exception_result(kind="compile_failed", exc=exc)
     return ToolResult.success(
@@ -572,6 +592,8 @@ def _exception_result(*, kind: str, exc: Exception) -> ToolResult:
     if isinstance(exc, ValidationError):
         details["validation_errors"] = exc.errors()
     if isinstance(exc, FileNotFoundError):
+        details["path"] = exc.filename
+    if isinstance(exc, FileExistsError):
         details["path"] = exc.filename
     return ToolResult.error(
         kind=kind,

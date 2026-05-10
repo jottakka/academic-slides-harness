@@ -6,6 +6,7 @@ import fitz
 from academic_slides_harness.mcp.server import (
     MCP_TOOL_NAMES,
     build_app,
+    compile_rendered_beamer,
     create_run,
     ingest_source,
     list_visual_artifacts,
@@ -16,6 +17,15 @@ from academic_slides_harness.mcp.server import (
     render_zoom_crop,
     validate_run,
 )
+
+
+def _make_pdf(path: Path) -> Path:
+    doc = fitz.open()
+    page = doc.new_page(width=200, height=120)
+    page.insert_text((36, 60), "Academic Slides Harness", fontsize=12)
+    doc.save(path)
+    doc.close()
+    return path
 
 
 def test_mcp_tool_registry_contains_initial_contract() -> None:
@@ -85,6 +95,27 @@ def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
         "AcademicSlidesHarness_ValidateRun",
     }
     assert tool_names == expected
+
+
+def test_compile_rendered_beamer_returns_typed_timeout_error(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    tex_path = tmp_path / "deck.tex"
+    tex_path.write_text("\\documentclass{beamer}", encoding="utf-8")
+
+    def fail_timeout(*args: object, **kwargs: object) -> Path:
+        raise TimeoutError("Tectonic timed out after 1 seconds")
+
+    monkeypatch.setattr(
+        "academic_slides_harness.mcp.server.compile_tex_with_tectonic",
+        fail_timeout,
+    )
+
+    result = compile_rendered_beamer(tex_path=str(tex_path), output_dir=str(tmp_path / "build"))
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "compile_timeout"
 
 
 def test_ingest_source_returns_typed_error_for_missing_pdf(tmp_path: Path) -> None:
@@ -359,3 +390,47 @@ def test_render_source_preview_returns_typed_error_for_missing_pdf(tmp_path: Pat
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "missing_input"
+
+
+def test_render_source_preview_returns_typed_error_for_existing_artifact(tmp_path: Path) -> None:
+    source = _make_pdf(tmp_path / "source.pdf")
+    output_dir = tmp_path / "screens"
+    first = render_source_preview(
+        source_pdf=str(source),
+        output_dir=str(output_dir),
+        pages="1",
+        resolution="fast",
+    )
+
+    second = render_source_preview(
+        source_pdf=str(source),
+        output_dir=str(output_dir),
+        pages="1",
+        resolution="fast",
+    )
+
+    assert first.ok is True
+    assert second.ok is False
+    assert second.structured_content["error"]["kind"] == "artifact_exists"
+
+
+def test_render_source_preview_allows_explicit_overwrite(tmp_path: Path) -> None:
+    source = _make_pdf(tmp_path / "source.pdf")
+    output_dir = tmp_path / "screens"
+    render_source_preview(
+        source_pdf=str(source),
+        output_dir=str(output_dir),
+        pages="1",
+        resolution="fast",
+    )
+
+    result = render_source_preview(
+        source_pdf=str(source),
+        output_dir=str(output_dir),
+        pages="1",
+        resolution="fast",
+        overwrite=True,
+    )
+
+    assert result.ok is True
+    assert result.structured_content["artifacts"][0]["path"].endswith("source_pdf-p1-72dpi.png")

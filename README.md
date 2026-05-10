@@ -62,6 +62,9 @@ The initial MCP surface is implemented in `academic_slides_harness.mcp.server`.
 Visual tools generate PNG artifacts with absolute paths, dimensions, DPI, scale,
 zoom, and SHA-256 hashes so agents can inspect rendered evidence instead of
 guessing from source text.
+Visual preview and crop tools refuse to overwrite an existing PNG by default and
+return a typed `artifact_exists` error through MCP. Pass `overwrite=true` only
+when replacing a previous artifact is intentional.
 
 ## MCP Stdio
 

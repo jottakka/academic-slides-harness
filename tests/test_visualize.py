@@ -76,6 +76,50 @@ def test_render_pdf_pages_creates_real_png_artifacts(tmp_path: Path) -> None:
     assert artifacts[0].sha256
 
 
+def test_render_pdf_pages_rejects_existing_artifact_by_default(tmp_path: Path) -> None:
+    source = _make_pdf(tmp_path / "source.pdf")
+    output_dir = tmp_path / "screens"
+    render_pdf_pages(
+        pdf_path=source,
+        output_dir=output_dir,
+        target="source_pdf",
+        pages=[1],
+        options=RenderOptions(resolution="fast"),
+    )
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        render_pdf_pages(
+            pdf_path=source,
+            output_dir=output_dir,
+            target="source_pdf",
+            pages=[1],
+            options=RenderOptions(resolution="fast"),
+        )
+
+
+def test_render_pdf_pages_allows_explicit_overwrite(tmp_path: Path) -> None:
+    source = _make_pdf(tmp_path / "source.pdf")
+    output_dir = tmp_path / "screens"
+    first = render_pdf_pages(
+        pdf_path=source,
+        output_dir=output_dir,
+        target="source_pdf",
+        pages=[1],
+        options=RenderOptions(resolution="fast"),
+    )
+
+    second = render_pdf_pages(
+        pdf_path=source,
+        output_dir=output_dir,
+        target="source_pdf",
+        pages=[1],
+        options=RenderOptions(resolution="fast"),
+        overwrite=True,
+    )
+
+    assert second[0].path == first[0].path
+
+
 def test_render_pdf_pages_rejects_missing_pdf(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="PDF not found"):
         render_pdf_pages(
@@ -116,6 +160,29 @@ def test_render_zoom_crop_creates_larger_detail_artifact(tmp_path: Path) -> None
     assert artifact.zoom == 2.0
     assert artifact.width > 100
     assert artifact.height > 100
+
+
+def test_render_zoom_crop_rejects_existing_artifact_by_default(tmp_path: Path) -> None:
+    source = _make_pdf(tmp_path / "source.pdf")
+    output_dir = tmp_path / "crops"
+    render_zoom_crop(
+        pdf_path=source,
+        output_dir=output_dir,
+        target="source_pdf",
+        page=1,
+        crop=CropBox(x=0.0, y=0.0, width=0.5, height=0.5, normalized=True),
+        options=RenderOptions(resolution="fast", zoom=2.0),
+    )
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        render_zoom_crop(
+            pdf_path=source,
+            output_dir=output_dir,
+            target="source_pdf",
+            page=1,
+            crop=CropBox(x=0.0, y=0.0, width=0.5, height=0.5, normalized=True),
+            options=RenderOptions(resolution="fast", zoom=2.0),
+        )
 
 
 def test_render_zoom_crop_rejects_crop_outside_page(tmp_path: Path) -> None:
