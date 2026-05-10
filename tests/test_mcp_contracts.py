@@ -3,6 +3,7 @@ from pathlib import Path
 
 import fitz
 
+from academic_slides_harness.ingest.pdf import normalize_extracted_pdf_text
 from academic_slides_harness.mcp.server import (
     MCP_TOOL_NAMES,
     build_app,
@@ -162,6 +163,15 @@ def test_extract_source_pages_returns_page_text_for_mcp_planning(tmp_path: Path)
             "truncated": False,
         }
     ]
+
+
+def test_extracted_source_page_text_is_safe_for_mcp_json_transport() -> None:
+    surrogate = chr(0xDCC3)
+
+    text = normalize_extracted_pdf_text(f"Alpha{surrogate}  Beta\nGamma")
+
+    assert text == "Alpha Beta Gamma"
+    assert all(not 0xD800 <= ord(char) <= 0xDFFF for char in text)
 
 
 def test_extract_source_pages_returns_typed_error_for_missing_pdf(tmp_path: Path) -> None:

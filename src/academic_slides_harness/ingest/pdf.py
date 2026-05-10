@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 
 import pdfplumber
@@ -36,7 +37,7 @@ def extract_pdf_page_text(
             )
         for page_number in pages:
             raw_text = pdf.pages[page_number - 1].extract_text() or ""
-            text = " ".join(raw_text.split())
+            text = normalize_extracted_pdf_text(raw_text)
             truncated = len(text) > max_chars_per_page
             selected_pages.append(
                 {
@@ -51,3 +52,11 @@ def extract_pdf_page_text(
         "page_count": page_count,
         "pages": selected_pages,
     }
+
+
+def normalize_extracted_pdf_text(raw_text: str) -> str:
+    """Return compact JSON-safe text from PDF extraction output."""
+    json_safe_text = "".join(
+        " " if unicodedata.category(character) == "Cs" else character for character in raw_text
+    )
+    return " ".join(json_safe_text.split())
