@@ -53,6 +53,11 @@ def test_render_options_reject_invalid_values(options: RenderOptions) -> None:
         options.resolved()
 
 
+def test_crop_box_rejects_non_positive_dimensions() -> None:
+    with pytest.raises(ValueError, match="positive"):
+        CropBox(x=0, y=0, width=-1, height=1)
+
+
 def test_render_pdf_pages_creates_real_png_artifacts(tmp_path: Path) -> None:
     source = _make_pdf(tmp_path / "source.pdf")
 
@@ -71,6 +76,30 @@ def test_render_pdf_pages_creates_real_png_artifacts(tmp_path: Path) -> None:
     assert artifacts[0].sha256
 
 
+def test_render_pdf_pages_rejects_missing_pdf(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="PDF not found"):
+        render_pdf_pages(
+            pdf_path=tmp_path / "missing.pdf",
+            output_dir=tmp_path / "screens",
+            target="source_pdf",
+            pages=[1],
+            options=RenderOptions(resolution="fast"),
+        )
+
+
+def test_render_pdf_pages_rejects_out_of_bounds_pages(tmp_path: Path) -> None:
+    source = _make_pdf(tmp_path / "source.pdf")
+
+    with pytest.raises(ValueError, match="outside PDF page count"):
+        render_pdf_pages(
+            pdf_path=source,
+            output_dir=tmp_path / "screens",
+            target="source_pdf",
+            pages=[2],
+            options=RenderOptions(resolution="fast"),
+        )
+
+
 def test_render_zoom_crop_creates_larger_detail_artifact(tmp_path: Path) -> None:
     source = _make_pdf(tmp_path / "source.pdf")
 
@@ -87,3 +116,17 @@ def test_render_zoom_crop_creates_larger_detail_artifact(tmp_path: Path) -> None
     assert artifact.zoom == 2.0
     assert artifact.width > 100
     assert artifact.height > 100
+
+
+def test_render_zoom_crop_rejects_crop_outside_page(tmp_path: Path) -> None:
+    source = _make_pdf(tmp_path / "source.pdf")
+
+    with pytest.raises(ValueError, match="outside page bounds"):
+        render_zoom_crop(
+            pdf_path=source,
+            output_dir=tmp_path / "crops",
+            target="source_pdf",
+            page=1,
+            crop=CropBox(x=2.0, y=2.0, width=0.5, height=0.5, normalized=True),
+            options=RenderOptions(resolution="fast", zoom=2.0),
+        )

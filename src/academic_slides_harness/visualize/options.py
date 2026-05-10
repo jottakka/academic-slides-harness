@@ -19,6 +19,10 @@ class CropBox:
     height: float
     normalized: bool = True
 
+    def __post_init__(self) -> None:
+        if self.width <= 0 or self.height <= 0:
+            raise ValueError("Crop width and height must be positive.")
+
 
 @dataclass(frozen=True)
 class ResolvedRenderOptions:

@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import socket
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,9 @@ def main(argv: list[str] | None = None) -> int:
         return _doctor_arcade(args)
     if args.command == "doctor" and args.doctor_target == "secrets":
         return _doctor_secrets(args)
+    if args.command == "doctor":
+        parser.print_help(file=sys.stderr)
+        return 2
     print(f"academic-slides-harness {__version__}")
     return 0
 
@@ -105,7 +109,7 @@ def diagnose_arcade(
 ) -> dict[str, Any]:
     checks = [
         _check_arcade_cli(arcade_cli_path),
-        _check_local_stdio_entrypoint(Path.cwd()),
+        _check_local_stdio_entrypoint(_project_root()),
     ]
     if check_http_endpoints:
         checks.extend(
@@ -231,11 +235,16 @@ def _check_local_stdio_entrypoint(project_root: Path) -> dict[str, Any]:
         "ok": True,
         "message": "Local stdio MCP entrypoint is available.",
         "details": {
+            "path": str(server_path.resolve()),
             "entrypoint": str(server_path.resolve()),
             "stdio_command": "uv run python server.py stdio",
             "arcade_command": f"arcade mcp stdio --cwd {project_root.resolve()}",
         },
     }
+
+
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
 
 
 def _check_tcp_endpoint(*, name: str, host: str, port: int, timeout: float) -> dict[str, Any]:

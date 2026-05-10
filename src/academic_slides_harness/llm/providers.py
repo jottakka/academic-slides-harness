@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from json import JSONDecodeError
 from typing import Protocol
 
 import httpx
@@ -21,6 +22,17 @@ class NoLLMProvider:
 
     def plan_deck(self, *, title: str, excerpts: list[str], max_slides: int) -> DeckPlan:
         clean_excerpts = [normalize_whitespace(excerpt) for excerpt in excerpts if excerpt.strip()]
+        if not clean_excerpts:
+            return DeckPlan(
+                title=title,
+                slides=(
+                    SlideDraft(
+                        title=f"{title}: 1",
+                        body="No source excerpts were available for deterministic planning.",
+                        source_excerpt=None,
+                    ),
+                ),
+            )
         selected = clean_excerpts[: max(1, max_slides)]
         slides = tuple(
             SlideDraft(
@@ -48,19 +60,25 @@ class OllamaProvider:
             return False
 
     def list_models(self) -> list[str]:
-        response = httpx.get(f"{self.base_url}/api/tags", timeout=self.timeout_seconds)
-        response.raise_for_status()
-        payload = response.json()
-        return sorted(model["name"] for model in payload.get("models", []))
+        try:
+            response = httpx.get(f"{self.base_url}/api/tags", timeout=self.timeout_seconds)
+            response.raise_for_status()
+            payload = response.json()
+        except (httpx.HTTPError, JSONDecodeError, ValueError):
+            return []
+        return sorted(str(model["name"]) for model in payload.get("models", []) if "name" in model)
 
     def embed(self, *, model: str, text: str) -> list[float]:
-        response = httpx.post(
-            f"{self.base_url}/api/embed",
-            json={"model": model, "input": text},
-            timeout=self.timeout_seconds,
-        )
-        response.raise_for_status()
-        payload = response.json()
+        try:
+            response = httpx.post(
+                f"{self.base_url}/api/embed",
+                json={"model": model, "input": text},
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except (httpx.HTTPError, JSONDecodeError, ValueError) as exc:
+            raise RuntimeError("Ollama embedding failed; use deterministic fallback") from exc
         embeddings = payload.get("embeddings")
         if not embeddings:
             raise RuntimeError("Ollama did not return embeddings")

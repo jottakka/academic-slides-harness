@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pdfplumber
 
-from academic_slides_harness.core.models import SourceDocument, sha256_bytes
+from academic_slides_harness.core.models import SourceDocument, sha256_file
 
 
 def inspect_pdf(path: Path) -> SourceDocument:
@@ -15,5 +15,5 @@ def inspect_pdf(path: Path) -> SourceDocument:
         path=resolved,
         kind="pdf",
         pages=pages,
-        sha256=sha256_bytes(resolved.read_bytes()),
+        sha256=sha256_file(resolved),
     )

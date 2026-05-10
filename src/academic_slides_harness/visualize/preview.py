@@ -19,10 +19,12 @@ def render_pdf_pages(
     options: RenderOptions,
 ) -> list[ScreenshotArtifact]:
     resolved = options.resolved()
+    _ensure_pdf_file(pdf_path)
     output_dir.mkdir(parents=True, exist_ok=True)
     artifacts: list[ScreenshotArtifact] = []
 
     with fitz.open(pdf_path) as document:
+        _validate_pages_within_document(pages=pages, page_count=document.page_count)
         for page_number in pages:
             page = document.load_page(page_number - 1)
             pixmap = page.get_pixmap(
@@ -56,9 +58,11 @@ def render_zoom_crop(
     options: RenderOptions,
 ) -> ScreenshotArtifact:
     resolved = options.resolved()
+    _ensure_pdf_file(pdf_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     with fitz.open(pdf_path) as document:
+        _validate_pages_within_document(pages=[page], page_count=document.page_count)
         pdf_page = document.load_page(page - 1)
         clip = _resolve_crop(crop, pdf_page.rect)
         zoomed_scale = resolved.scale * resolved.zoom
@@ -89,8 +93,23 @@ def _resolve_crop(crop: CropBox, page_rect: fitz.Rect) -> fitz.Rect:
         y0 = page_rect.y0 + crop.y * page_rect.height
         x1 = x0 + crop.width * page_rect.width
         y1 = y0 + crop.height * page_rect.height
-        return fitz.Rect(x0, y0, x1, y1)
-    return fitz.Rect(crop.x, crop.y, crop.x + crop.width, crop.y + crop.height)
+        rect = fitz.Rect(x0, y0, x1, y1)
+    else:
+        rect = fitz.Rect(crop.x, crop.y, crop.x + crop.width, crop.y + crop.height)
+    if rect.is_empty or not page_rect.contains(rect):
+        raise ValueError("Crop is outside page bounds.")
+    return rect
+
+
+def _ensure_pdf_file(pdf_path: Path) -> None:
+    if not pdf_path.is_file():
+        raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+
+def _validate_pages_within_document(*, pages: list[int], page_count: int) -> None:
+    invalid_pages = [page for page in pages if page < 1 or page > page_count]
+    if invalid_pages:
+        raise ValueError(f"Page selection {invalid_pages} is outside PDF page count {page_count}.")
 
 
 def _write_sidecar(artifact: ScreenshotArtifact) -> None:

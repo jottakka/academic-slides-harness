@@ -1,7 +1,16 @@
 import json
 import socket
+from pathlib import Path
 
-from academic_slides_harness.cli import main
+from academic_slides_harness.cli import diagnose_arcade, main
+
+
+def test_doctor_without_target_prints_help_and_fails(capsys) -> None:
+    exit_code = main(["doctor"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "Run local environment checks" in captured.err
 
 
 def test_doctor_arcade_defaults_to_local_stdio_without_http_endpoint_checks(
@@ -24,6 +33,19 @@ def test_doctor_arcade_defaults_to_local_stdio_without_http_endpoint_checks(
     assert exit_code == 1
     assert output["ok"] is False
     assert check_names == {"arcade_cli", "local_stdio_entrypoint"}
+
+
+def test_diagnose_arcade_finds_stdio_entrypoint_outside_repo_cwd(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    output = diagnose_arcade(arcade_cli_path=str(tmp_path / "missing-arcade.exe"))
+
+    checks_by_name = {check["name"]: check for check in output["checks"]}
+    assert checks_by_name["local_stdio_entrypoint"]["ok"] is True
+    assert Path(checks_by_name["local_stdio_entrypoint"]["details"]["path"]).name == "server.py"
 
 
 def test_doctor_arcade_checks_http_endpoints_only_when_requested(

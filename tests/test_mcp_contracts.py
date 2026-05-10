@@ -56,6 +56,16 @@ def test_create_run_rejects_title_without_usable_slug(tmp_path: Path) -> None:
     assert not (tmp_path / "manifest.json").exists()
 
 
+def test_create_run_rejects_base_dir_that_is_file(tmp_path: Path) -> None:
+    base_file = tmp_path / "not-a-directory"
+    base_file.write_text("file", encoding="utf-8")
+
+    result = create_run(base_dir=str(base_file), title="Bad Base")
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_base_dir"
+
+
 def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
     app = build_app()
     tool_names = {
@@ -92,6 +102,13 @@ def test_ingest_source_returns_typed_error_for_invalid_pdf(tmp_path: Path) -> No
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "ingest_failed"
+
+
+def test_ingest_source_returns_typed_error_for_directory(tmp_path: Path) -> None:
+    result = ingest_source(source_path=str(tmp_path))
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "missing_input"
 
 
 def test_render_beamer_returns_tex_hash(tmp_path: Path) -> None:
@@ -134,6 +151,29 @@ def test_render_beamer_returns_typed_error_for_bad_slide_shape(tmp_path: Path) -
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "invalid_slide"
+
+
+def test_render_beamer_returns_typed_error_when_slides_is_not_list(tmp_path: Path) -> None:
+    result = render_beamer(
+        output_dir=str(tmp_path),
+        title="Bad Deck",
+        slides="not a list",
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_slides"
+
+
+def test_render_beamer_strips_numbered_body_markers(tmp_path: Path) -> None:
+    result = render_beamer(
+        output_dir=str(tmp_path),
+        title="Numbered Deck",
+        slides=[{"title": "One", "body": "1. First\n2. Second"}],
+    )
+
+    tex = Path(result.structured_content["deck_tex"]).read_text(encoding="utf-8")
+    assert "\\item First" in tex
+    assert "\\item 1. First" not in tex
 
 
 def test_validate_run_returns_typed_error_for_missing_manifest(tmp_path: Path) -> None:
@@ -213,6 +253,13 @@ def test_list_visual_artifacts_restores_harness_metadata_from_filename(tmp_path:
     assert artifact["dpi"] == 144
     assert artifact["scale"] == 2.0
     assert artifact["zoom"] == 2.0
+
+
+def test_list_visual_artifacts_returns_typed_error_for_missing_dir(tmp_path: Path) -> None:
+    result = list_visual_artifacts(screenshots_dir=str(tmp_path / "missing"))
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "missing_input"
 
 
 def test_render_zoom_crop_returns_typed_error_for_invalid_target(tmp_path: Path) -> None:
@@ -301,3 +348,14 @@ def test_render_slide_preview_returns_typed_error_for_invalid_render_options(
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "invalid_render_options"
+
+
+def test_render_source_preview_returns_typed_error_for_missing_pdf(tmp_path: Path) -> None:
+    result = render_source_preview(
+        source_pdf=str(tmp_path / "missing.pdf"),
+        output_dir=str(tmp_path),
+        pages="1",
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "missing_input"

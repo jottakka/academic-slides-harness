@@ -72,8 +72,9 @@ class ScreenshotArtifact(StrictModel):
         zoom: float,
     ) -> ScreenshotArtifact:
         resolved = path.resolve()
+        digest = sha256_file(resolved)
         return cls(
-            artifact_id=f"{target}-p{page}-{sha256_bytes(resolved.read_bytes())[:12]}",
+            artifact_id=f"{target}-p{page}-{digest[:12]}",
             path=resolved,
             target=target,
             page=page,
@@ -82,7 +83,7 @@ class ScreenshotArtifact(StrictModel):
             dpi=dpi,
             scale=scale,
             zoom=zoom,
-            sha256=sha256_bytes(resolved.read_bytes()),
+            sha256=digest,
             created_at=datetime.now(UTC),
         )
 
@@ -158,3 +159,11 @@ class ToolResult(StrictModel):
 
 def sha256_bytes(content: bytes) -> str:
     return sha256(content).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    digest = sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

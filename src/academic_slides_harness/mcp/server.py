@@ -8,7 +8,7 @@ from arcade_mcp_server import MCPApp
 from PIL import Image
 from pydantic import ValidationError
 
-from academic_slides_harness.core.models import RunManifest, ToolResult, sha256_bytes
+from academic_slides_harness.core.models import RunManifest, ToolResult, sha256_file
 from academic_slides_harness.ingest.pdf import inspect_pdf
 from academic_slides_harness.llm.providers import NoLLMProvider
 from academic_slides_harness.render.beamer import BeamerDeck, BeamerSlide, render_beamer_tex
@@ -43,13 +43,20 @@ def create_run(
     title: Annotated[str, "Human-readable deck or source title for the run."],
 ) -> ToolResult:
     """Create a local academic slide generation run directory and manifest."""
+    base_path = Path(base_dir).resolve()
+    if base_path.exists() and not base_path.is_dir():
+        return ToolResult.error(
+            kind="invalid_base_dir",
+            message=f"Base path is not a directory: {base_path}",
+            details={"base_dir": str(base_path)},
+        )
     slug = _slug(title)
     if not slug:
         return ToolResult.error(
             kind="invalid_title",
             message="Run title must include at least one alphanumeric character.",
         )
-    run_dir = Path(base_dir).resolve() / slug
+    run_dir = base_path / slug
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "screenshots").mkdir(exist_ok=True)
     manifest = RunManifest.create(run_dir=run_dir, title=title)
@@ -68,7 +75,7 @@ def ingest_source(
     source_path: Annotated[str, "Absolute or relative path to the source PDF."],
 ) -> ToolResult:
     """Inspect a source PDF and return deterministic ingestion metadata."""
-    if not Path(source_path).exists():
+    if not Path(source_path).is_file():
         return ToolResult.error(kind="missing_input", message=f"Source not found: {source_path}")
     try:
         source = inspect_pdf(Path(source_path))
@@ -103,8 +110,20 @@ def render_beamer(
     ],
 ) -> ToolResult:
     """Render a Beamer deck.tex file from structured slide data."""
+    if not isinstance(slides, list):
+        return ToolResult.error(
+            kind="invalid_slides",
+            message="Slides must be a list of slide objects.",
+            details={"actual_type": type(slides).__name__},
+        )
     parsed_slides: list[BeamerSlide] = []
     for index, slide in enumerate(slides, start=1):
+        if not isinstance(slide, dict):
+            return ToolResult.error(
+                kind="invalid_slide",
+                message=f"Slide {index} must be an object.",
+                details={"slide_index": index, "actual_type": type(slide).__name__},
+            )
         if "title" not in slide:
             return ToolResult.error(
                 kind="invalid_slide",
@@ -132,7 +151,7 @@ def render_beamer(
         structured_content={
             "deck_tex": str(tex_path),
             "title": title,
-            "sha256": sha256_bytes(tex_path.read_bytes()),
+            "sha256": sha256_file(tex_path),
         },
     )
 
@@ -181,6 +200,9 @@ def render_source_preview(
         render_options = _parse_render_options(resolution=resolution, dpi=dpi, scale=scale)
     except ValueError as exc:
         return _exception_result(kind="invalid_render_options", exc=exc)
+    missing_input = _missing_file_result(path=source_pdf, label="Source PDF")
+    if missing_input is not None:
+        return missing_input
     try:
         artifacts = render_pdf_pages(
             pdf_path=Path(source_pdf),
@@ -217,6 +239,9 @@ def render_slide_preview(
         render_options = _parse_render_options(resolution=resolution, dpi=dpi, scale=scale)
     except ValueError as exc:
         return _exception_result(kind="invalid_render_options", exc=exc)
+    missing_input = _missing_file_result(path=deck_pdf, label="Deck PDF")
+    if missing_input is not None:
+        return missing_input
     try:
         artifacts = render_pdf_pages(
             pdf_path=Path(deck_pdf),
@@ -271,6 +296,9 @@ def render_zoom_crop(
         )
     except ValueError as exc:
         return _exception_result(kind="invalid_render_options", exc=exc)
+    missing_input = _missing_file_result(path=pdf_path, label="PDF")
+    if missing_input is not None:
+        return missing_input
     try:
         artifact = render_crop(
             pdf_path=Path(pdf_path),
@@ -294,7 +322,13 @@ def list_visual_artifacts(
 ) -> ToolResult:
     """List PNG visual artifact paths in a screenshots directory."""
     directory = Path(screenshots_dir).resolve()
-    png_paths = sorted(directory.rglob("*.png")) if directory.exists() else []
+    if not directory.is_dir():
+        return ToolResult.error(
+            kind="missing_input",
+            message=f"Screenshots directory not found: {directory}",
+            details={"screenshots_dir": str(directory)},
+        )
+    png_paths = sorted(directory.glob("*.png"))
     artifacts = [_png_metadata(path) for path in png_paths]
     return ToolResult.success(
         message=f"Found {len(artifacts)} visual artifacts",
@@ -312,6 +346,9 @@ def compile_rendered_beamer(
     output_dir: Annotated[str, "Directory where the compiled PDF should be written."],
 ) -> ToolResult:
     """Compile a rendered Beamer .tex file to PDF with Tectonic."""
+    missing_input = _missing_file_result(path=tex_path, label="TeX file")
+    if missing_input is not None:
+        return missing_input
     try:
         pdf_path = compile_tex_with_tectonic(tex_path=Path(tex_path), output_dir=Path(output_dir))
     except Exception as exc:
@@ -320,7 +357,7 @@ def compile_rendered_beamer(
         message="Compiled Beamer PDF",
         structured_content={
             "pdf_path": str(pdf_path.resolve()),
-            "sha256": sha256_bytes(pdf_path.read_bytes()),
+            "sha256": sha256_file(pdf_path),
         },
     )
 
@@ -382,7 +419,7 @@ def _png_metadata(path: Path) -> dict[str, Any]:
         "width": width,
         "height": height,
         "format": "png",
-        "sha256": sha256_bytes(path.read_bytes()),
+        "sha256": sha256_file(path),
         "dpi": None,
         "scale": None,
         "zoom": None,
@@ -398,7 +435,9 @@ def _slide_bullets(slide: dict[str, Any]) -> list[str] | None:
         bullets = slide["bullets"]
         if not isinstance(bullets, list):
             return None
-        parsed = [str(item).strip() for item in bullets if str(item).strip()]
+        if not all(isinstance(item, str) for item in bullets):
+            return None
+        parsed = [item.strip() for item in bullets if item.strip()]
         return parsed or None
     if "body" not in slide:
         return None
@@ -406,7 +445,11 @@ def _slide_bullets(slide: dict[str, Any]) -> list[str] | None:
 
 
 def _body_to_bullets(body: str) -> list[str] | None:
-    lines = [re.sub(r"^[-*]\s*", "", line).strip() for line in body.splitlines() if line.strip()]
+    lines = [
+        re.sub(r"^(?:[-*]|\d+[.)])\s*", "", line).strip()
+        for line in body.splitlines()
+        if line.strip()
+    ]
     if len(lines) > 1:
         return lines
 
@@ -445,6 +488,17 @@ def _parse_crop_box(crop: dict) -> CropBox:
     return crop_box
 
 
+def _missing_file_result(*, path: str, label: str) -> ToolResult | None:
+    resolved = Path(path)
+    if resolved.is_file():
+        return None
+    return ToolResult.error(
+        kind="missing_input",
+        message=f"{label} not found: {path}",
+        details={"path": str(resolved)},
+    )
+
+
 def _parse_render_options(
     *,
     resolution: str,
@@ -465,18 +519,10 @@ def _parse_render_options(
 def _validate_manifest_file(*, manifest_path: Path, run_dir: Path) -> dict[str, bool]:
     raw_manifest = manifest_path.read_text(encoding="utf-8")
     try:
-        json.loads(raw_manifest)
-    except json.JSONDecodeError:
-        return {
-            "manifest_parseable": False,
-            "manifest_schema_valid": False,
-            "manifest_run_dir_matches": False,
-        }
-    try:
         manifest = RunManifest.model_validate_json(raw_manifest)
     except ValidationError:
         return {
-            "manifest_parseable": True,
+            "manifest_parseable": _is_parseable_json(raw_manifest),
             "manifest_schema_valid": False,
             "manifest_run_dir_matches": False,
         }
@@ -522,11 +568,24 @@ def _visual_metadata_from_filename(path: Path) -> dict[str, Any]:
 
 
 def _exception_result(*, kind: str, exc: Exception) -> ToolResult:
+    details: dict[str, Any] = {"exception_type": exc.__class__.__name__}
+    if isinstance(exc, ValidationError):
+        details["validation_errors"] = exc.errors()
+    if isinstance(exc, FileNotFoundError):
+        details["path"] = exc.filename
     return ToolResult.error(
         kind=kind,
         message=str(exc),
-        details={"exception_type": exc.__class__.__name__},
+        details=details,
     )
+
+
+def _is_parseable_json(raw_json: str) -> bool:
+    try:
+        json.loads(raw_json)
+    except json.JSONDecodeError:
+        return False
+    return True
 
 
 _DRAFT_PROMPT = "Draft a Beamer-first academic deck from ingested source artifacts."
