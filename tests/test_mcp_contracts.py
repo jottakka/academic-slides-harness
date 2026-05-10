@@ -389,6 +389,131 @@ def test_render_rich_beamer_requires_visual_block_for_figure_layout(
     assert result.structured_content["error"]["kind"] == "invalid_slide"
 
 
+def test_render_rich_beamer_rejects_title_overflow_before_rendering(
+    tmp_path: Path,
+) -> None:
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "A" * 65,
+                "layout": "takeaway",
+                "blocks": [
+                    {"type": "claim", "text": "Short claim."},
+                    {"type": "source_citation", "source_page": 2},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    error = result.structured_content["error"]
+    assert error["kind"] == "text_overflow_risk"
+    assert error["details"]["field"] == "title"
+    assert error["details"]["max_chars"] == 64
+    assert not (tmp_path / "rendered" / "deck.tex").exists()
+
+
+def test_render_rich_beamer_rejects_claim_overflow_before_copying_visual(
+    tmp_path: Path,
+) -> None:
+    visual_path = tmp_path / "source.png"
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 24, 16), False)
+    pixmap.clear_with(200)
+    pixmap.save(visual_path)
+
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Evidence First",
+                "layout": "figure_explanation",
+                "blocks": [
+                    {"type": "visual", "artifact_path": str(visual_path)},
+                    {"type": "claim", "text": "A" * 121},
+                    {"type": "source_citation", "source_page": 2},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    error = result.structured_content["error"]
+    assert error["kind"] == "text_overflow_risk"
+    assert error["details"]["block_type"] == "claim"
+    assert error["details"]["max_chars"] == 120
+    assert not (tmp_path / "rendered" / "assets").exists()
+
+
+def test_render_rich_beamer_rejects_explanation_overflow(
+    tmp_path: Path,
+) -> None:
+    visual_path = tmp_path / "source.png"
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 24, 16), False)
+    pixmap.clear_with(200)
+    pixmap.save(visual_path)
+
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Evidence First",
+                "layout": "figure_explanation",
+                "blocks": [
+                    {"type": "visual", "artifact_path": str(visual_path)},
+                    {"type": "claim", "text": "Short claim."},
+                    {"type": "explanation", "text": "A" * 221},
+                    {"type": "source_citation", "source_page": 2},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    error = result.structured_content["error"]
+    assert error["kind"] == "text_overflow_risk"
+    assert error["details"]["block_type"] == "explanation"
+    assert error["details"]["max_chars"] == 220
+
+
+def test_render_rich_beamer_rejects_too_many_workflow_steps(
+    tmp_path: Path,
+) -> None:
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Workflow",
+                "layout": "workflow_steps",
+                "blocks": [
+                    {
+                        "type": "steps",
+                        "items": [
+                            "Normalize channels",
+                            "Segment structures",
+                            "Measure intensities",
+                            "Review artifacts",
+                            "Export table",
+                            "Archive raw images",
+                        ],
+                    },
+                    {"type": "source_citation", "source_page": 2},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    error = result.structured_content["error"]
+    assert error["kind"] == "text_overflow_risk"
+    assert error["details"]["field"] == "steps"
+    assert error["details"]["max_items"] == 5
+
+
 def test_render_beamer_strips_numbered_body_markers(tmp_path: Path) -> None:
     result = render_beamer(
         output_dir=str(tmp_path),

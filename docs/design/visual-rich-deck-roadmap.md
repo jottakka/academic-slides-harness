@@ -127,6 +127,9 @@ Validation:
 
 Goal: prevent overflow before render by checking text density in the rich plan.
 
+Status: implemented in `RenderRichBeamer` using the text limits from the rich
+layout catalog.
+
 Checks:
 
 - Max title length per layout.
@@ -142,8 +145,35 @@ Acceptance criteria:
   steps, and a passing compact deck.
 - `RenderRichBeamer` or a dedicated validation tool can report the problem
   before LaTeX compilation.
+- Overflow checks run before visual assets are copied into the deck output.
 
-## Ticket 4: Image Sanitization Before Embed
+## Ticket 4: Deck Theme Presets
+
+Goal: store reusable deck styling decisions so agents do not hard-code colors,
+logos, fonts, citation style, or visual tone per run.
+
+Recommended shape:
+
+- Add versioned JSON presets under `templates/themes/`.
+- Keep each preset deterministic and portable:
+  - `name`, `version`, `description`
+  - `colors`: primary, secondary, accent, background, muted
+  - `fonts`: title, body, monospace or Beamer-safe fallback names
+  - `logo`: optional path plus placement and max dimensions
+  - `beamer`: theme, colortheme, aspect ratio, navigation policy
+  - `layout_defaults`: per-layout spacing and image width preferences
+- Expose presets through MCP resources, for example
+  `academic-slides://themes/default_visual_academic`.
+- Later, allow `RenderRichBeamer` to accept a JSON-friendly `theme_preset`
+  string or object after tests define the contract.
+
+Acceptance criteria:
+
+- At least one default preset is documented and exposed as a resource.
+- Missing logo files return a typed error only when a preset references a logo.
+- Existing decks keep their current default theme unless a preset is supplied.
+
+## Ticket 5: Image Sanitization Before Embed
 
 Goal: make visual assets safe and predictable before `RenderRichBeamer` copies
 them into the deck.
@@ -164,7 +194,7 @@ Acceptance criteria:
 - Tiny images return typed `image_too_small`.
 - The rich renderer uses sanitized metadata instead of blindly copying images.
 
-## Ticket 5: Image Legibility And Crop Quality
+## Ticket 6: Image Legibility And Crop Quality
 
 Goal: judge whether a chosen source preview/crop is usable on a slide.
 
@@ -182,7 +212,7 @@ Acceptance criteria:
 - Real source-preview artifacts include quality warnings in their metadata.
 - Agent-facing prompts require replacing or cropping images with hard warnings.
 
-## Ticket 6: Visual And Didactic Quality Checks
+## Ticket 7: Visual And Didactic Quality Checks
 
 Goal: add a deterministic validator for rich decks and rendered artifacts.
 
@@ -201,7 +231,7 @@ Acceptance criteria:
 - Tests cover a passing deck and clear failures.
 - The final agent workflow uses this validator before accepting a deck.
 
-## Ticket 7: End-To-End Visual Deck Agent Run
+## Ticket 8: End-To-End Visual Deck Agent Run
 
 Goal: have an MCP-only agent generate a 5-7 slide deck from a colorful image
 processing chapter using rich layouts.

@@ -210,6 +210,8 @@ def rich_slide_schema_markdown() -> str:
             "- `visual.artifact_path` must point to an existing PNG, JPG, or JPEG artifact.",
             "- Claims should cite either a source page or a visual artifact used on the slide.",
             "- Keep text short enough for the selected layout limits.",
+            "- Text over the layout limits returns typed `text_overflow_risk` before "
+            "assets are copied.",
             "- Use `RenderLayoutPlaceholders` before generation when an agent needs "
             "layout guidance.",
         ]

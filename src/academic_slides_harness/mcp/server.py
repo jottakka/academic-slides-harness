@@ -615,7 +615,7 @@ def _parse_rich_slides(
             )
         title = _required_str(slide, field="title", kind="invalid_slide", slide_index=index)
         layout = _required_str(slide, field="layout", kind="invalid_layout", slide_index=index)
-        if layout not in {"hero_visual", "figure_explanation", "workflow_steps", "takeaway"}:
+        if layout not in LAYOUT_PATTERNS:
             raise RichSlideParseError(
                 kind="invalid_layout",
                 message=f"Slide {index} uses unsupported layout: {layout}",
@@ -628,6 +628,20 @@ def _parse_rich_slides(
                 message=f"Slide {index} must include a non-empty blocks list.",
                 details={"slide_index": index},
             )
+        learning_goal = slide.get("learning_goal")
+        if learning_goal is not None and not isinstance(learning_goal, str):
+            raise RichSlideParseError(
+                kind="invalid_slide",
+                message=f"Slide {index} learning_goal must be a string when provided.",
+                details={"slide_index": index, "actual_type": type(learning_goal).__name__},
+            )
+        _validate_rich_slide_text_limits(
+            slide_index=index,
+            title=title,
+            layout=layout,
+            learning_goal=learning_goal,
+            raw_blocks=raw_blocks,
+        )
         parsed_blocks = [
             _parse_rich_block(
                 block=block,
@@ -646,13 +660,6 @@ def _parse_rich_slides(
                 message=f"Slide {index} layout {layout} requires a visual block.",
                 details={"slide_index": index, "layout": layout},
             )
-        learning_goal = slide.get("learning_goal")
-        if learning_goal is not None and not isinstance(learning_goal, str):
-            raise RichSlideParseError(
-                kind="invalid_slide",
-                message=f"Slide {index} learning_goal must be a string when provided.",
-                details={"slide_index": index, "actual_type": type(learning_goal).__name__},
-            )
         parsed_slides.append(
             RichBeamerSlide(
                 title=title,
@@ -662,6 +669,120 @@ def _parse_rich_slides(
             )
         )
     return parsed_slides, assets
+
+
+def _validate_rich_slide_text_limits(
+    *,
+    slide_index: int,
+    title: str,
+    layout: str,
+    learning_goal: str | None,
+    raw_blocks: list[Any],
+) -> None:
+    limits = LAYOUT_PATTERNS[layout].suggested_text_limits
+    _enforce_text_limit(
+        slide_index=slide_index,
+        layout=layout,
+        field="title",
+        value=title,
+        max_chars=limits["title"],
+    )
+    if learning_goal is not None:
+        _enforce_text_limit(
+            slide_index=slide_index,
+            layout=layout,
+            field="learning_goal",
+            value=learning_goal,
+            max_chars=limits["learning_goal"],
+        )
+    for block_index, block in enumerate(raw_blocks, start=1):
+        if not isinstance(block, dict):
+            continue
+        block_type = block.get("type")
+        if block_type in {"claim", "explanation"} and isinstance(block.get("text"), str):
+            max_chars = limits.get(block_type)
+            if max_chars is not None:
+                _enforce_text_limit(
+                    slide_index=slide_index,
+                    layout=layout,
+                    field="text",
+                    value=block["text"],
+                    max_chars=max_chars,
+                    block_index=block_index,
+                    block_type=block_type,
+                )
+        if block_type == "steps" and isinstance(block.get("items"), list):
+            items = [item for item in block["items"] if isinstance(item, str)]
+            max_steps = limits.get("max_steps")
+            if max_steps is not None and len(items) > max_steps:
+                raise RichSlideParseError(
+                    kind="text_overflow_risk",
+                    message=(
+                        f"Slide {slide_index} has {len(items)} workflow steps; "
+                        f"maximum is {max_steps}."
+                    ),
+                    details={
+                        "slide_index": slide_index,
+                        "layout": layout,
+                        "block_index": block_index,
+                        "block_type": "steps",
+                        "field": "steps",
+                        "item_count": len(items),
+                        "max_items": max_steps,
+                        "remediation": "Merge or remove low-value steps before rendering.",
+                    },
+                )
+            max_step_chars = limits.get("step")
+            if max_step_chars is not None:
+                for item_index, item in enumerate(items, start=1):
+                    _enforce_text_limit(
+                        slide_index=slide_index,
+                        layout=layout,
+                        field="step",
+                        value=item,
+                        max_chars=max_step_chars,
+                        block_index=block_index,
+                        block_type="steps",
+                        item_index=item_index,
+                    )
+
+
+def _enforce_text_limit(
+    *,
+    slide_index: int,
+    layout: str,
+    field: str,
+    value: str,
+    max_chars: int,
+    block_index: int | None = None,
+    block_type: str | None = None,
+    item_index: int | None = None,
+) -> None:
+    char_count = len(value.strip())
+    if char_count <= max_chars:
+        return
+    details: dict[str, Any] = {
+        "slide_index": slide_index,
+        "layout": layout,
+        "field": field,
+        "char_count": char_count,
+        "max_chars": max_chars,
+        "remediation": "Shorten this text or move detail into speaker notes/source context.",
+    }
+    if block_index is not None:
+        details["block_index"] = block_index
+    if block_type is not None:
+        details["block_type"] = block_type
+    if item_index is not None:
+        details["item_index"] = item_index
+    raise RichSlideParseError(
+        kind="text_overflow_risk",
+        message=(
+            f"Slide {slide_index} {field} has {char_count} characters; "
+            f"maximum for {layout} is {max_chars}."
+        ),
+        details=details,
+    )
 
 
 def _parse_rich_block(

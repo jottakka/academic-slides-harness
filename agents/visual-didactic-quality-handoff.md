@@ -27,10 +27,11 @@ the call is cancelled, stop and report that blocker.
 1. Rich slide schema and `RenderRichBeamer`.
 2. MCP prompt/resources for visual academic decks and quality rubrics.
 3. Rich plan text limits to prevent title, claim, explanation, and step overflow.
-4. Image sanitization before embedding visual assets in Beamer.
-5. Image legibility and crop quality scoring.
-6. Deterministic visual/didactic quality validator.
-7. MCP-only agent E2E deck run with real source visuals.
+4. Deck theme presets for reusable colors, logos, fonts, and Beamer defaults.
+5. Image sanitization before embedding visual assets in Beamer.
+6. Image legibility and crop quality scoring.
+7. Deterministic visual/didactic quality validator.
+8. MCP-only agent E2E deck run with real source visuals.
 
 ## Owned Files By Ticket
 
@@ -54,30 +55,38 @@ Ticket 2:
 
 Ticket 3:
 
-- `src/academic_slides_harness/validate/` or equivalent validator module
 - `src/academic_slides_harness/mcp/server.py`
-- `tests/test_*quality*.py`
+- `src/academic_slides_harness/render/layout_catalog.py`
+- `tests/test_mcp_contracts.py`
 
 Ticket 4:
+
+- `templates/themes/`
+- `src/academic_slides_harness/mcp/server.py`
+- `src/academic_slides_harness/render/`
+- `tests/test_mcp_contracts.py`
+- `tests/test_render.py`
+
+Ticket 5:
 
 - `src/academic_slides_harness/visualize/sanitize.py` or equivalent module
 - `src/academic_slides_harness/mcp/server.py`
 - `tests/test_visualize.py`
 
-Ticket 5:
+Ticket 6:
 
 - `src/academic_slides_harness/visualize/quality.py` or equivalent module
 - `src/academic_slides_harness/mcp/server.py`
 - `tests/test_visualize.py`
 - E2E fixture tests that inspect real PNG artifacts
 
-Ticket 6:
+Ticket 7:
 
 - `src/academic_slides_harness/validate/` or equivalent validator module
 - `tests/test_*quality*.py`
 - E2E fixture tests that render previews/crops
 
-Ticket 7:
+Ticket 8:
 
 - No production code unless a validated blocker appears.
 - Generated artifacts under `runs/`.
