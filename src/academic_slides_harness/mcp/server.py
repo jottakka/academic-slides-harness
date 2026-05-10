@@ -6,6 +6,7 @@ from typing import Annotated, Any
 
 from arcade_mcp_server import MCPApp
 from PIL import Image
+from pydantic import ValidationError
 
 from academic_slides_harness.core.models import RunManifest, ToolResult, sha256_bytes
 from academic_slides_harness.ingest.pdf import inspect_pdf
@@ -139,11 +140,14 @@ def validate_run(
 ) -> ToolResult:
     """Run lightweight deterministic validation checks for a run directory."""
     path = Path(run_dir).resolve()
+    manifest_path = path / "manifest.json"
     checks = {
         "run_dir_exists": path.exists(),
         "screenshots_dir_exists": (path / "screenshots").exists(),
-        "manifest_exists": (path / "manifest.json").exists(),
+        "manifest_exists": manifest_path.exists(),
     }
+    if checks["manifest_exists"]:
+        checks.update(_validate_manifest_file(manifest_path=manifest_path, run_dir=path))
     if not all(checks.values()):
         return ToolResult.error(
             kind="validation_failed",
@@ -453,6 +457,31 @@ def _parse_render_options(
     )
     options.resolved()
     return options
+
+
+def _validate_manifest_file(*, manifest_path: Path, run_dir: Path) -> dict[str, bool]:
+    raw_manifest = manifest_path.read_text(encoding="utf-8")
+    try:
+        json.loads(raw_manifest)
+    except json.JSONDecodeError:
+        return {
+            "manifest_parseable": False,
+            "manifest_schema_valid": False,
+            "manifest_run_dir_matches": False,
+        }
+    try:
+        manifest = RunManifest.model_validate_json(raw_manifest)
+    except ValidationError:
+        return {
+            "manifest_parseable": True,
+            "manifest_schema_valid": False,
+            "manifest_run_dir_matches": False,
+        }
+    return {
+        "manifest_parseable": True,
+        "manifest_schema_valid": True,
+        "manifest_run_dir_matches": manifest.run_dir.resolve() == run_dir,
+    }
 
 
 def _visual_metadata_from_sidecar(path: Path) -> dict[str, Any] | None:

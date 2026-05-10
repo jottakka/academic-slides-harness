@@ -26,3 +26,7 @@ Invalid transitions should fail loudly in tests and runtime orchestration.
 ## Initial MCP Contract
 
 Tools must expose JSON-friendly parameters, structured outputs, and typed errors. Visual tools are first-class and must return paths to generated PNGs so another agent can inspect the artifacts.
+
+`validate_run` must validate required run paths and parse `manifest.json` against
+`RunManifest`; existence-only manifest checks are not enough evidence that a run
+is usable.

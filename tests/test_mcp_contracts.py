@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import fitz
@@ -140,6 +141,37 @@ def test_validate_run_returns_typed_error_for_missing_manifest(tmp_path: Path) -
         "screenshots_dir_exists": True,
         "manifest_exists": False,
     }
+
+
+def test_validate_run_rejects_unreadable_manifest_json(tmp_path: Path) -> None:
+    created = create_run(base_dir=tmp_path, title="Broken Manifest")
+    run_dir = Path(created.structured_content["run_dir"])
+    manifest_path = Path(created.structured_content["manifest_path"])
+    manifest_path.write_text("{not-json", encoding="utf-8")
+
+    result = validate_run(run_dir=str(run_dir))
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "validation_failed"
+    checks = result.structured_content["error"]["details"]["checks"]
+    assert checks["manifest_exists"] is True
+    assert checks["manifest_parseable"] is False
+    assert checks["manifest_schema_valid"] is False
+
+
+def test_validate_run_rejects_manifest_schema_errors(tmp_path: Path) -> None:
+    created = create_run(base_dir=tmp_path, title="Bad Manifest Schema")
+    run_dir = Path(created.structured_content["run_dir"])
+    manifest_path = Path(created.structured_content["manifest_path"])
+    manifest_path.write_text(json.dumps({"run_id": "missing-required-fields"}), encoding="utf-8")
+
+    result = validate_run(run_dir=str(run_dir))
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "validation_failed"
+    checks = result.structured_content["error"]["details"]["checks"]
+    assert checks["manifest_parseable"] is True
+    assert checks["manifest_schema_valid"] is False
 
 
 def test_list_visual_artifacts_returns_dimensions_and_hash(tmp_path: Path) -> None:
