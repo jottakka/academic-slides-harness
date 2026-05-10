@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import socket
 from pathlib import Path
@@ -17,6 +18,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "doctor" and args.doctor_target == "arcade":
         return _doctor_arcade(args)
+    if args.command == "doctor" and args.doctor_target == "secrets":
+        return _doctor_secrets(args)
     print(f"academic-slides-harness {__version__}")
     return 0
 
@@ -35,6 +38,18 @@ def _build_parser() -> argparse.ArgumentParser:
     arcade.add_argument("--worker-host", default="127.0.0.1")
     arcade.add_argument("--worker-port", type=int, default=8002)
     arcade.add_argument("--timeout", type=float, default=1.0)
+
+    secrets = doctor_targets.add_parser(
+        "secrets",
+        help="Scan local config files for raw secret patterns without printing values.",
+    )
+    secrets.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    secrets.add_argument(
+        "--path",
+        action="append",
+        default=[],
+        help="File or directory to scan. Can be passed more than once.",
+    )
     return parser
 
 
@@ -53,6 +68,22 @@ def _doctor_arcade(args: argparse.Namespace) -> int:
         for check in report["checks"]:
             status = "ok" if check["ok"] else "fail"
             print(f"{check['name']}: {status} - {check['message']}")
+    return 0 if report["ok"] else 1
+
+
+def _doctor_secrets(args: argparse.Namespace) -> int:
+    report = scan_secret_paths(paths=[Path(path) for path in args.path] or _default_secret_paths())
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        if report["ok"]:
+            print("secrets: ok - no raw secret patterns found")
+        else:
+            for finding in report["findings"]:
+                print(
+                    f"{finding['kind']}: fail - {finding['path']}:{finding['line']} "
+                    f"- {finding['message']}"
+                )
     return 0 if report["ok"] else 1
 
 
@@ -81,6 +112,73 @@ def diagnose_arcade(
         ),
     ]
     return {"ok": all(check["ok"] for check in checks), "checks": checks}
+
+
+def scan_secret_paths(*, paths: list[Path]) -> dict[str, Any]:
+    findings: list[dict[str, Any]] = []
+    scanned_paths: list[str] = []
+    for path in paths:
+        resolved = path.resolve()
+        if not resolved.exists():
+            findings.append(
+                {
+                    "kind": "missing_path",
+                    "path": str(resolved),
+                    "line": 0,
+                    "message": "Configured scan path does not exist.",
+                }
+            )
+            continue
+        for file_path in _iter_secret_scan_files(resolved):
+            scanned_paths.append(str(file_path))
+            findings.extend(_scan_secret_file(file_path))
+    return {
+        "ok": not findings,
+        "scanned_paths": sorted(scanned_paths),
+        "findings": sorted(findings, key=lambda finding: (finding["path"], finding["line"])),
+    }
+
+
+def _iter_secret_scan_files(path: Path) -> list[Path]:
+    if path.is_file():
+        return [path]
+    ignored_dirs = {".git", ".pytest_cache", ".ruff_cache", ".venv", "runs"}
+    files: list[Path] = []
+    for candidate in path.rglob("*"):
+        if any(part in ignored_dirs for part in candidate.parts):
+            continue
+        if candidate.is_file():
+            files.append(candidate.resolve())
+    return sorted(files)
+
+
+def _scan_secret_file(path: Path) -> list[dict[str, Any]]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        return []
+
+    findings: list[dict[str, Any]] = []
+    for line_number, line in enumerate(lines, start=1):
+        if _RAW_API_KEY_PATTERN.search(line):
+            findings.append(
+                {
+                    "kind": "raw_api_key",
+                    "path": str(path),
+                    "line": line_number,
+                    "message": "Raw API key pattern found; use an environment variable reference.",
+                }
+            )
+        if _PRIVATE_KEY_BEGIN_PATTERN.search(line):
+            findings.append(
+                {
+                    "kind": "private_key_block",
+                    "path": str(path),
+                    "line": line_number,
+                    "message": "Private key block found; move key material out of config files.",
+                }
+            )
+    return findings
 
 
 def _check_arcade_cli(arcade_cli_path: str | None) -> dict[str, Any]:
@@ -138,6 +236,21 @@ def _resolve_arcade_cli(arcade_cli_path: str | None) -> Path | None:
 
 def _default_windows_arcade_path() -> Path:
     return Path.home() / ".local" / "bin" / "arcade.exe"
+
+
+def _default_secret_paths() -> list[Path]:
+    repo_root = Path(__file__).resolve().parents[2]
+    return [
+        repo_root / "AGENTS.md",
+        repo_root / "README.md",
+        repo_root / "compat",
+        repo_root / "docs",
+        repo_root / "pyproject.toml",
+    ]
+
+
+_RAW_API_KEY_PATTERN = re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b")
+_PRIVATE_KEY_BEGIN_PATTERN = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
 
 
 if __name__ == "__main__":

@@ -31,3 +31,15 @@ The config file includes credential-like values directly in the file.
 - Move private key material to a local secret store or generated dev-only path outside shared config.
 - Add a startup validation warning when a config includes raw `sk-` style keys or PEM blocks.
 - Add a secret-scan test for local example configs.
+
+## Project Mitigation
+
+The harness now provides a redacted local scan command:
+
+```powershell
+uv run academic-slides-harness doctor secrets --path C:\Users\fjlim\OneDrive\Documents\arcade-ai\engine.yaml --json
+```
+
+This command reports finding type, file path, and line number without printing
+matched secret values. It does not rotate or remove exposed credentials; rotate
+and externalize them separately.

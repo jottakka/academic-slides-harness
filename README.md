@@ -48,6 +48,16 @@ and worker endpoint `127.0.0.1:8002` separately. A non-zero exit means at
 least one dependency is unavailable, so live `arcade_live` tests should remain
 skipped until the failing check is fixed.
 
+Use the secret doctor before sharing local Arcade configs or repro bundles:
+
+```powershell
+uv run academic-slides-harness doctor secrets
+uv run academic-slides-harness doctor secrets --path C:\Users\fjlim\OneDrive\Documents\arcade-ai\engine.yaml --json
+```
+
+The secret scan reports file paths, line numbers, and finding types without
+printing matched secret values.
+
 The initial MCP surface is implemented in `academic_slides_harness.mcp.server`.
 Visual tools generate PNG artifacts with absolute paths, dimensions, DPI, scale,
 zoom, and SHA-256 hashes so agents can inspect rendered evidence instead of
