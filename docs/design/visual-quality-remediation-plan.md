@@ -65,6 +65,8 @@ Rollback: keep the quality module but stop attaching quality to
 Scope: reject or warn when `RenderRichBeamer` uses a visual artifact with hard
 quality warnings.
 
+Status: implemented.
+
 Acceptance:
 
 - full-page source previews cannot be used as `hero_visual` without an override;
@@ -127,11 +129,22 @@ Real MCP stdio warning smoke:
   `text_heavy_crop`.
 - `source_pdf-p4-crop-144dpi-z2.5.png` now reports `text_heavy_crop`.
 
+Chunk 3 evidence:
+
+- `RenderRichBeamer` now consumes visual `quality` sidecar metadata before
+  copying assets.
+- `hero_visual` rejects `page_like_snapshot` with typed
+  `visual_quality_failed`.
+- Any visual block rejects `text_heavy_crop` with typed
+  `visual_quality_failed`.
+- `allow_visual_quality_warnings: true` is supported as an explicit exception
+  and produces `quality_override: true` in asset metadata.
+- Targeted failing-first test was:
+  `uv run pytest tests/test_mcp_contracts.py -q -k "quality or snapshot or text_heavy"`.
+
 ## Next Chunk
 
-Implement Chunk 3: make `RenderRichBeamer` consume quality metadata and reject
-hard visual misuse before rendering, especially:
-
-- `hero_visual` using a `page_like_snapshot`;
-- visual blocks using `text_heavy_crop` without an explicit override;
-- source/crop warnings without slide/block-indexed typed feedback.
+Implement Chunk 4: upgrade the Beamer layout internals so the deck no longer
+looks like bland placeholder output. Focus first on a non-empty title/opening
+slide, small consistent citations, and figure layouts that reserve clear space
+for visual evidence.

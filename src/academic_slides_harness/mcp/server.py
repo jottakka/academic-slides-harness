@@ -40,6 +40,7 @@ from academic_slides_harness.visualize.preview import (
 from academic_slides_harness.visualize.preview import (
     render_zoom_crop as render_crop,
 )
+from academic_slides_harness.visualize.quality import assess_visual_quality
 from academic_slides_harness.visualize.sanitize import VisualAssetError, sanitize_visual_asset
 
 MCP_TOOL_NAMES = frozenset(
@@ -677,6 +678,7 @@ def _parse_rich_slides(
                 block=block,
                 slide_index=index,
                 block_index=block_index,
+                layout=layout,
                 assets_dir=assets_dir,
                 assets=assets,
             )
@@ -820,6 +822,7 @@ def _parse_rich_block(
     block: Any,
     slide_index: int,
     block_index: int,
+    layout: str,
     assets_dir: Path,
     assets: list[dict[str, Any]],
 ) -> RichSlideBlock:
@@ -848,7 +851,26 @@ def _parse_rich_block(
             slide_index=slide_index,
             block_index=block_index,
         )
-        deck_asset_path, asset = _copy_visual_asset(Path(artifact_path), assets_dir=assets_dir)
+        allow_quality_warnings = block.get("allow_visual_quality_warnings", False)
+        if not isinstance(allow_quality_warnings, bool):
+            raise RichSlideParseError(
+                kind="invalid_block",
+                message="allow_visual_quality_warnings must be a boolean when provided.",
+                details={
+                    "slide_index": slide_index,
+                    "block_index": block_index,
+                    "field": "allow_visual_quality_warnings",
+                    "actual_type": type(allow_quality_warnings).__name__,
+                },
+            )
+        deck_asset_path, asset = _copy_visual_asset(
+            Path(artifact_path),
+            assets_dir=assets_dir,
+            slide_index=slide_index,
+            block_index=block_index,
+            layout=layout,
+            allow_visual_quality_warnings=allow_quality_warnings,
+        )
         assets.append(asset)
         return RichSlideBlock(type="visual", artifact_path=deck_asset_path.as_posix())
     if block_type in {"claim", "explanation"}:
@@ -885,7 +907,26 @@ def _parse_rich_block(
     )
 
 
-def _copy_visual_asset(source_path: Path, *, assets_dir: Path) -> tuple[Path, dict[str, Any]]:
+def _copy_visual_asset(
+    source_path: Path,
+    *,
+    assets_dir: Path,
+    slide_index: int,
+    block_index: int,
+    layout: str,
+    allow_visual_quality_warnings: bool,
+) -> tuple[Path, dict[str, Any]]:
+    quality = _visual_quality_for_source(source_path)
+    if quality is not None:
+        _raise_for_visual_quality(
+            quality=quality,
+            source_path=source_path,
+            slide_index=slide_index,
+            block_index=block_index,
+            layout=layout,
+            allow_visual_quality_warnings=allow_visual_quality_warnings,
+        )
+
     safe_stem = _slug(source_path.stem) or "visual"
     try:
         sanitized = sanitize_visual_asset(
@@ -899,10 +940,96 @@ def _copy_visual_asset(source_path: Path, *, assets_dir: Path) -> tuple[Path, di
             message=exc.message,
             details=exc.details,
         ) from exc
-    return Path("assets") / sanitized.path.name, {
+
+    if quality is None:
+        quality = assess_visual_quality(sanitized.path, context="generic").to_structured_content()
+        _raise_for_visual_quality(
+            quality=quality,
+            source_path=source_path,
+            slide_index=slide_index,
+            block_index=block_index,
+            layout=layout,
+            allow_visual_quality_warnings=allow_visual_quality_warnings,
+        )
+
+    hard_warning_kinds = _hard_visual_warning_kinds(quality=quality, layout=layout)
+    asset = {
         **sanitized.to_structured_content(),
         "deck_path": str(sanitized.path),
+        "quality": quality,
     }
+    if allow_visual_quality_warnings and hard_warning_kinds:
+        asset["quality_override"] = True
+    return Path("assets") / sanitized.path.name, asset
+
+
+def _visual_quality_for_source(source_path: Path) -> dict[str, Any] | None:
+    sidecar_quality = _visual_quality_from_sidecar(source_path)
+    if sidecar_quality is not None:
+        return sidecar_quality
+    if not source_path.is_file():
+        return None
+    try:
+        return assess_visual_quality(source_path, context="generic").to_structured_content()
+    except OSError:
+        return None
+
+
+def _visual_quality_from_sidecar(path: Path) -> dict[str, Any] | None:
+    metadata = _visual_metadata_from_sidecar(path)
+    if metadata is None:
+        return None
+    quality = metadata.get("quality")
+    return quality if isinstance(quality, dict) else None
+
+
+def _raise_for_visual_quality(
+    *,
+    quality: dict[str, Any],
+    source_path: Path,
+    slide_index: int,
+    block_index: int,
+    layout: str,
+    allow_visual_quality_warnings: bool,
+) -> None:
+    hard_warning_kinds = _hard_visual_warning_kinds(quality=quality, layout=layout)
+    if not hard_warning_kinds or allow_visual_quality_warnings:
+        return
+    raise RichSlideParseError(
+        kind="visual_quality_failed",
+        message=(
+            f"Visual artifact failed rich deck quality gate: {', '.join(hard_warning_kinds)}."
+        ),
+        details={
+            "slide_index": slide_index,
+            "block_index": block_index,
+            "layout": layout,
+            "artifact_path": str(source_path.resolve()),
+            "warning_kinds": hard_warning_kinds,
+            "warnings": _quality_warnings(quality),
+            "remediation": (
+                "Use a focused crop around the figure, chart, equation, or evidence region; "
+                "crop tighter when the artifact is dominated by body text."
+            ),
+        },
+    )
+
+
+def _hard_visual_warning_kinds(*, quality: dict[str, Any], layout: str) -> list[str]:
+    warning_kinds = [warning["kind"] for warning in _quality_warnings(quality) if "kind" in warning]
+    hard_kinds: list[str] = []
+    if layout == "hero_visual" and "page_like_snapshot" in warning_kinds:
+        hard_kinds.append("page_like_snapshot")
+    if "text_heavy_crop" in warning_kinds:
+        hard_kinds.append("text_heavy_crop")
+    return hard_kinds
+
+
+def _quality_warnings(quality: dict[str, Any]) -> list[dict[str, Any]]:
+    warnings = quality.get("warnings", [])
+    if not isinstance(warnings, list):
+        return []
+    return [warning for warning in warnings if isinstance(warning, dict)]
 
 
 def _theme_preset_payload(name: str) -> dict[str, Any]:

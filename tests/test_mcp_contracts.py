@@ -35,6 +35,36 @@ def _make_pdf(path: Path) -> Path:
     return path
 
 
+def _make_png(path: Path, *, width: int = 64, height: int = 48) -> Path:
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, width, height), False)
+    pixmap.clear_with(200)
+    pixmap.save(path)
+    return path
+
+
+def _write_quality_sidecar(path: Path, *, warning_kind: str) -> None:
+    (path.with_suffix(f"{path.suffix}.json")).write_text(
+        json.dumps(
+            {
+                "path": str(path),
+                "quality": {
+                    "ok": True,
+                    "metrics": {"width": 64, "height": 48},
+                    "warnings": [
+                        {
+                            "kind": warning_kind,
+                            "severity": "warning",
+                            "message": "Synthetic quality warning for contract testing.",
+                            "details": {"source": "test"},
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_mcp_tool_registry_contains_initial_contract() -> None:
     assert {
         "compile_rendered_beamer",
@@ -373,10 +403,7 @@ def test_render_beamer_returns_typed_error_when_slides_is_not_list(tmp_path: Pat
 
 
 def test_render_rich_beamer_embeds_visual_artifact_without_itemize(tmp_path: Path) -> None:
-    visual_path = tmp_path / "source.png"
-    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 24, 16), False)
-    pixmap.clear_with(200)
-    pixmap.save(visual_path)
+    visual_path = _make_png(tmp_path / "source.png", width=24, height=16)
 
     result = render_rich_beamer(
         output_dir=str(tmp_path / "rendered"),
@@ -407,6 +434,102 @@ def test_render_rich_beamer_embeds_visual_artifact_without_itemize(tmp_path: Pat
     assert result.structured_content["assets"][0]["format"] == "PNG"
     assert result.structured_content["assets"][0]["converted"] is False
     assert "assets/" in tex
+
+
+def test_render_rich_beamer_rejects_page_snapshot_as_hero_visual(tmp_path: Path) -> None:
+    visual_path = _make_png(tmp_path / "source_pdf-p1-144dpi.png")
+    _write_quality_sidecar(visual_path, warning_kind="page_like_snapshot")
+
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Whole Page Is Not Evidence",
+                "layout": "hero_visual",
+                "blocks": [
+                    {"type": "visual", "artifact_path": str(visual_path)},
+                    {"type": "claim", "text": "A page screenshot should not be a hero visual."},
+                    {"type": "source_citation", "source_page": 1},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    error = result.structured_content["error"]
+    assert error["kind"] == "visual_quality_failed"
+    assert error["details"]["slide_index"] == 1
+    assert error["details"]["block_index"] == 1
+    assert error["details"]["layout"] == "hero_visual"
+    assert error["details"]["artifact_path"] == str(visual_path.resolve())
+    assert error["details"]["warning_kinds"] == ["page_like_snapshot"]
+    assert not (tmp_path / "rendered" / "assets").exists()
+    assert not (tmp_path / "rendered" / "deck.tex").exists()
+
+
+def test_render_rich_beamer_rejects_text_heavy_visual_crop(tmp_path: Path) -> None:
+    visual_path = _make_png(tmp_path / "source_pdf-p4-crop-144dpi-z2.5.png")
+    _write_quality_sidecar(visual_path, warning_kind="text_heavy_crop")
+
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Text Heavy Crop",
+                "layout": "figure_explanation",
+                "blocks": [
+                    {"type": "visual", "artifact_path": str(visual_path)},
+                    {"type": "claim", "text": "The image must be figure evidence, not body text."},
+                    {"type": "source_citation", "source_page": 4},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    error = result.structured_content["error"]
+    assert error["kind"] == "visual_quality_failed"
+    assert error["details"]["slide_index"] == 1
+    assert error["details"]["block_index"] == 1
+    assert error["details"]["layout"] == "figure_explanation"
+    assert error["details"]["warning_kinds"] == ["text_heavy_crop"]
+    assert "crop tighter" in error["details"]["remediation"]
+    assert not (tmp_path / "rendered" / "assets").exists()
+
+
+def test_render_rich_beamer_allows_visual_quality_override_with_metadata(
+    tmp_path: Path,
+) -> None:
+    visual_path = _make_png(tmp_path / "source_pdf-p4-crop-144dpi-z2.5.png")
+    _write_quality_sidecar(visual_path, warning_kind="text_heavy_crop")
+
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Explicit Override",
+                "layout": "figure_explanation",
+                "blocks": [
+                    {
+                        "type": "visual",
+                        "artifact_path": str(visual_path),
+                        "allow_visual_quality_warnings": True,
+                    },
+                    {"type": "claim", "text": "This warning is intentionally accepted."},
+                    {"type": "source_citation", "source_page": 4},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is True
+    asset = result.structured_content["assets"][0]
+    assert asset["quality_override"] is True
+    assert asset["quality"]["warnings"][0]["kind"] == "text_heavy_crop"
+    assert Path(asset["deck_path"]).is_file()
 
 
 def test_render_rich_beamer_returns_typed_error_for_missing_visual(

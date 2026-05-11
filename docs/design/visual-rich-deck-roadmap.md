@@ -236,17 +236,20 @@ Validation:
 
 Goal: judge whether a chosen source preview/crop is usable on a slide.
 
-Status: partially implemented. Preview and crop artifacts now include
-deterministic `quality` metadata with warnings for low visual density, low
-contrast, page-like source snapshots, and text-heavy crops. The next step is to
-make rich deck rendering consume those warnings as a quality gate.
+Status: implemented for artifact metadata and the rich-render quality gate.
+Preview and crop artifacts include deterministic `quality` metadata with
+warnings for low visual density, low contrast, page-like source snapshots, and
+text-heavy crops. `RenderRichBeamer` consumes those warnings before copying
+visual assets.
 
 Checks:
 
 - Dimensions and aspect ratio fit the selected layout.
 - Basic contrast/ink metrics warn on nearly blank or low-contrast images.
 - Crops with too much embedded PDF text are flagged for tighter crop selection.
-- Low-quality findings are warnings at first, except unreadable/corrupt images.
+- Full-page source previews used as `hero_visual` and text-heavy visual crops
+  are rejected with typed `visual_quality_failed` errors unless the visual block
+  explicitly sets `allow_visual_quality_warnings: true`.
 
 Acceptance criteria:
 
@@ -254,6 +257,8 @@ Acceptance criteria:
   structured results.
 - Real source-preview artifacts include quality warnings in their metadata.
 - Agent-facing prompts require replacing or cropping images with hard warnings.
+- Rich deck render responses preserve accepted quality metadata and mark
+  overrides as `quality_override: true`.
 
 ## Ticket 7: Visual And Didactic Quality Checks
 

@@ -210,6 +210,12 @@ def rich_slide_schema_markdown() -> str:
             "- `visual.artifact_path` must point to an existing readable image artifact; "
             "PNG and JPEG pass through when safe, and other readable formats are "
             "normalized to PNG.",
+            "- Visual artifacts with hard quality warnings are rejected before rendering: "
+            "`hero_visual` cannot use `page_like_snapshot`, and any visual block cannot "
+            "use `text_heavy_crop` unless `allow_visual_quality_warnings` is explicitly "
+            "set to `true` on that visual block.",
+            "- `allow_visual_quality_warnings` is an exception path; it is preserved in "
+            "asset metadata as `quality_override` for review.",
             "- Claims should cite either a source page or a visual artifact used on the slide.",
             "- Keep text short enough for the selected layout limits.",
             "- Text over the layout limits returns typed `text_overflow_risk` before "
