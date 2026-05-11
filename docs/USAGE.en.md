@@ -17,6 +17,22 @@ run the server from the repository root:
 arcade mcp stdio --cwd .
 ```
 
+## Model Provider Discovery
+
+Before choosing a deterministic or model-assisted path, inspect local/configured
+providers without exposing secrets:
+
+```json
+{
+  "tool": "AcademicSlidesHarness_ListModelProviders",
+  "arguments": {}
+}
+```
+
+The response reports Ollama availability and model names, OpenAI/Azure
+configuration booleans, and MarkItDown package availability. It never prints API
+key values.
+
 ## Basic Tool Flow
 
 Use a caller-provided output directory, usually under `runs/`.

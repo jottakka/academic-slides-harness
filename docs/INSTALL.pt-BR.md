@@ -43,6 +43,7 @@ Rode os checks locais normais:
 ```powershell
 uv run academic-slides-harness --help
 uv run academic-slides-harness doctor --help
+uv run academic-slides-harness doctor models --json
 uv run ruff format --check .
 uv run ruff check .
 uv run pytest -m "not ollama and not arcade_live" -q
@@ -162,3 +163,12 @@ Secret scan:
 uv run academic-slides-harness doctor secrets --json
 uv run academic-slides-harness doctor secrets --path docs --json
 ```
+
+Discovery de modelos/providers:
+
+```powershell
+uv run academic-slides-harness doctor models --json
+```
+
+Esse comando reporta Ollama, booleanos de configuracao OpenAI/Azure e
+disponibilidade do MarkItDown sem imprimir valores de API keys.

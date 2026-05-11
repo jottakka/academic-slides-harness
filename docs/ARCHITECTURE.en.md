@@ -14,7 +14,7 @@ render a deck while every important intermediate artifact remains inspectable.
 - `src/academic_slides_harness/visualize`: PDF-to-PNG previews, zoom crops,
   render options, image sanitization, and deterministic visual quality metrics.
 - `src/academic_slides_harness/llm`: optional provider adapters and deterministic
-  fallback behavior.
+  fallback behavior, plus redacted provider discovery.
 - `src/academic_slides_harness/mcp`: Arcade MCP app construction, tool
   registration, resources, structured outputs, and typed errors.
 
@@ -92,6 +92,9 @@ Source ingestion and planning:
 
 - `AcademicSlidesHarness_IngestSource`: inspect a PDF and return metadata.
 - `AcademicSlidesHarness_ExtractSourcePages`: return selected page text excerpts.
+- `AcademicSlidesHarness_ListModelProviders`: report redacted local/configured
+  model-provider availability for deterministic versus optional model-assisted
+  routing.
 - `AcademicSlidesHarness_PlanDeck`: create a deterministic draft plan from text
   excerpts using the fallback provider.
 
@@ -182,7 +185,7 @@ Implemented:
 - Source/deck previews, zoom crops, artifact listing, hashes, sidecars, and
   visual quality warnings.
 - MCP stdio tools/resources with typed errors.
-- Local Arcade and secret diagnostics.
+- Local Arcade, model-provider, and secret diagnostics.
 
 Experimental:
 
@@ -217,6 +220,7 @@ Optional gates:
 ```powershell
 uv run pytest tests/test_open_access_book_e2e.py -q
 uv run pytest -m ollama -q
+uv run academic-slides-harness doctor models --json
 uv run academic-slides-harness doctor secrets --json
 ```
 

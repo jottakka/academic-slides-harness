@@ -22,7 +22,8 @@ Implemented:
   DPI/scale/zoom metadata, SHA-256 hashes, and visual quality warnings.
 - Arcade MCP tools/resources over local stdio, with structured outputs and typed
   errors.
-- Local diagnostics for Arcade readiness and secret-pattern scans.
+- Local diagnostics for Arcade readiness, model-provider discovery, and
+  secret-pattern scans.
 
 Experimental or still maturing:
 
@@ -83,14 +84,15 @@ subcommands:
 1. `AcademicSlidesHarness_CreateRun`
 2. `AcademicSlidesHarness_IngestSource`
 3. `AcademicSlidesHarness_ExtractSourcePages`
-4. `AcademicSlidesHarness_RenderSourcePreview`
-5. `AcademicSlidesHarness_RenderZoomCrop`
-6. `AcademicSlidesHarness_PlanDeck`
-7. `AcademicSlidesHarness_RenderBeamer` or `AcademicSlidesHarness_RenderRichBeamer`
-8. `AcademicSlidesHarness_CompileRenderedBeamer`
-9. `AcademicSlidesHarness_RenderSlidePreview`
-10. `AcademicSlidesHarness_ListVisualArtifacts`
-11. `AcademicSlidesHarness_ValidateRun`
+4. `AcademicSlidesHarness_ListModelProviders`
+5. `AcademicSlidesHarness_RenderSourcePreview`
+6. `AcademicSlidesHarness_RenderZoomCrop`
+7. `AcademicSlidesHarness_PlanDeck`
+8. `AcademicSlidesHarness_RenderBeamer` or `AcademicSlidesHarness_RenderRichBeamer`
+9. `AcademicSlidesHarness_CompileRenderedBeamer`
+10. `AcademicSlidesHarness_RenderSlidePreview`
+11. `AcademicSlidesHarness_ListVisualArtifacts`
+12. `AcademicSlidesHarness_ValidateRun`
 
 Rich visual deck helpers:
 
@@ -114,7 +116,8 @@ The project keeps deterministic boundaries explicit:
   compilation.
 - `visualize`: PDF-to-PNG previews, crops, render presets, artifact sidecars, and
   visual quality metrics.
-- `llm`: optional local/provider adapters with deterministic fallback behavior.
+- `llm`: optional local/provider adapters, redacted provider discovery, and
+  deterministic fallback behavior.
 - `mcp`: Arcade MCP tool registration, resources, structured outputs, and typed
   errors.
 
@@ -164,6 +167,7 @@ Optional checks:
 ```powershell
 uv run pytest tests/test_open_access_book_e2e.py -q
 uv run pytest -m ollama -q
+uv run academic-slides-harness doctor models --json
 uv run academic-slides-harness doctor secrets --json
 ```
 

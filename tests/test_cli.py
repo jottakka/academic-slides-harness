@@ -145,6 +145,33 @@ def test_doctor_secrets_reports_findings_without_leaking_secret_values(
     assert "fake-test-key-material" not in raw_output
 
 
+def test_doctor_models_reports_redacted_provider_configuration(
+    capsys,
+    monkeypatch,
+) -> None:
+    fake_key = "sk-proj-" + ("x" * 48)
+    monkeypatch.setenv("OPENAI_API_KEY", fake_key)
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:9999/v1")
+    monkeypatch.setattr(
+        "academic_slides_harness.llm.providers.OllamaProvider.is_available",
+        lambda _self: False,
+    )
+    monkeypatch.setattr(
+        "academic_slides_harness.llm.providers.OllamaProvider.list_models",
+        lambda _self: [],
+    )
+
+    exit_code = main(["doctor", "models", "--json"])
+
+    raw_output = capsys.readouterr().out
+    output = json.loads(raw_output)
+    assert exit_code == 0
+    assert output["ok"] is True
+    assert output["providers"]["openai"]["api_key_configured"] is True
+    assert output["providers"]["openai"]["base_url_configured"] is True
+    assert fake_key not in raw_output
+
+
 def _unused_tcp_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("127.0.0.1", 0))

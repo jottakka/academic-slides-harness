@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from academic_slides_harness.core.models import RunManifest, ToolResult, sha256_file
 from academic_slides_harness.ingest.pdf import extract_pdf_page_text, inspect_pdf
-from academic_slides_harness.llm.providers import NoLLMProvider
+from academic_slides_harness.llm.providers import NoLLMProvider, discover_model_providers
 from academic_slides_harness.render.beamer import (
     BeamerDeck,
     BeamerSlide,
@@ -49,6 +49,7 @@ MCP_TOOL_NAMES = frozenset(
         "create_run",
         "extract_source_pages",
         "ingest_source",
+        "list_model_providers",
         "list_theme_presets",
         "plan_deck",
         "render_beamer",
@@ -178,6 +179,34 @@ def plan_deck(
     return ToolResult.success(
         message=f"Planned {len(plan.slides)} slides",
         structured_content=plan.model_dump(mode="json"),
+    )
+
+
+def list_model_providers(
+    *,
+    ollama_base_url: Annotated[
+        str,
+        "Ollama server base URL to probe. Defaults to the local Ollama API.",
+    ] = "http://127.0.0.1:11434",
+    timeout_seconds: Annotated[
+        float,
+        "Timeout in seconds for local provider probes.",
+    ] = 1.0,
+) -> ToolResult:
+    """List redacted local and configured model-provider availability."""
+    if timeout_seconds <= 0:
+        return ToolResult.error(
+            kind="invalid_options",
+            message="timeout_seconds must be positive.",
+            details={"timeout_seconds": timeout_seconds},
+        )
+    providers = discover_model_providers(
+        ollama_base_url=ollama_base_url,
+        timeout_seconds=timeout_seconds,
+    )
+    return ToolResult.success(
+        message="Listed model provider availability",
+        structured_content={"ok": True, "providers": providers},
     )
 
 
@@ -574,6 +603,7 @@ def build_app() -> MCPApp:
         create_run,
         extract_source_pages,
         ingest_source,
+        list_model_providers,
         list_theme_presets,
         plan_deck,
         render_beamer,

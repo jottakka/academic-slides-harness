@@ -17,6 +17,22 @@ Arcade também pode iniciar o servidor a partir da raiz do repositório:
 arcade mcp stdio --cwd .
 ```
 
+## Discovery De Providers De Modelo
+
+Antes de escolher uma rota deterministica ou assistida por modelo, inspecione
+providers locais/configurados sem expor secrets:
+
+```json
+{
+  "tool": "AcademicSlidesHarness_ListModelProviders",
+  "arguments": {}
+}
+```
+
+A resposta reporta disponibilidade do Ollama e nomes de modelos, booleanos de
+configuracao OpenAI/Azure e disponibilidade do pacote MarkItDown. Ela nunca
+imprime valores de API keys.
+
 ## Fluxo Básico De Tools
 
 Use um diretório de saída fornecido pelo usuário, normalmente dentro de `runs/`.

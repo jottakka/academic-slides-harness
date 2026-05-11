@@ -262,13 +262,16 @@ Scope:
 - optionally add `academic-slides-harness doctor models --json` backed by the
   same helper.
 
+Status: implemented.
+
 Acceptance:
 
-- Ollama availability and model list are returned when the server is reachable;
-- OpenAI/Azure config is reported as booleans without secret leakage;
-- missing Ollama degrades to `available: false`;
-- in-process MCP registry includes `list_model_providers`;
-- stdio MCP smoke can call the tool.
+- Ollama availability and model list are returned when the server is reachable.
+- OpenAI/Azure config is reported as booleans without secret leakage.
+- Missing Ollama degrades to `available: false`.
+- In-process MCP registry includes `list_model_providers`.
+- Stdio MCP smoke calls the tool.
+- CLI exposes `uv run academic-slides-harness doctor models --json`.
 
 Risk:
 
@@ -286,6 +289,20 @@ Validation:
 - `uv run pytest -m arcade_live -q`
 - `uv run pytest -m ollama -q` only when specifically validating live local
   Ollama behavior.
+
+Checkpoint evidence:
+
+- `uv run pytest tests/test_llm.py tests/test_cli.py tests/test_mcp_contracts.py tests/test_mcp_stdio.py -q`: passed.
+- `uv run academic-slides-harness doctor models --json`: passed; Ollama was
+  available, OpenAI/Azure keys were not configured, MarkItDown was not installed
+  in the project environment, and no key values were printed.
+- `uv run ruff format --check .`: passed.
+- `uv run ruff check .`: passed.
+- `uv run pytest -m "not ollama and not arcade_live" -q`: passed.
+- `uv run academic-slides-harness doctor arcade --json`: passed.
+- `uv run pytest -m arcade_live -q`: passed.
+- `uv run pytest -m ollama -q`: passed.
+- `uv run academic-slides-harness doctor secrets --json`: passed.
 
 ### Chunk 2: Deterministic MarkItDown Markdown Extraction
 
@@ -482,10 +499,6 @@ Validation:
 
 ## Recommended First Ticket
 
-Start with Chunk 1. It is the lowest-risk foundation because it gives agents a
-truthful, redacted view of local model availability before any tool chooses a
-deterministic or model-assisted extraction path.
-
-Then implement Chunk 2. MarkItDown should first land as an offline deterministic
-source-to-Markdown tool with fixture evidence before any LLM/OCR behavior is
-introduced.
+Chunk 1 is implemented. The next ticket should be Chunk 2: MarkItDown should
+first land as an offline deterministic source-to-Markdown tool with fixture
+evidence before any LLM/OCR behavior is introduced.

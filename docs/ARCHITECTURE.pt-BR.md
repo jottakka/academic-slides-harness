@@ -16,8 +16,8 @@ inspecionáveis.
 - `src/academic_slides_harness/visualize`: previews PDF-para-PNG, zoom crops,
   opções de renderização, sanitização de imagem e métricas visuais
   determinísticas.
-- `src/academic_slides_harness/llm`: adapters opcionais e fallback
-  determinístico.
+- `src/academic_slides_harness/llm`: adapters opcionais, discovery redigido de
+  providers e fallback determinístico.
 - `src/academic_slides_harness/mcp`: construção do app Arcade MCP, registro de
   tools, resources, outputs estruturados e erros tipados.
 
@@ -96,6 +96,9 @@ Ingestão e planejamento:
 - `AcademicSlidesHarness_IngestSource`: inspeciona um PDF e retorna metadados.
 - `AcademicSlidesHarness_ExtractSourcePages`: retorna trechos de texto de
   páginas selecionadas.
+- `AcademicSlidesHarness_ListModelProviders`: reporta disponibilidade redigida
+  de providers/modelos locais ou configurados para escolher entre rotas
+  deterministicas e assistidas por modelo.
 - `AcademicSlidesHarness_PlanDeck`: cria plano determinístico a partir de
   trechos de texto usando o provider fallback.
 
@@ -188,7 +191,7 @@ Implementado:
 - Previews de fonte/deck, zoom crops, listagem de artifacts, hashes, sidecars e
   warnings de qualidade visual.
 - Tools/resources MCP stdio com erros tipados.
-- Diagnósticos locais de Arcade e secrets.
+- Diagnósticos locais de Arcade, providers/modelos e secrets.
 
 Experimental:
 
@@ -223,6 +226,7 @@ Gates opcionais:
 ```powershell
 uv run pytest tests/test_open_access_book_e2e.py -q
 uv run pytest -m ollama -q
+uv run academic-slides-harness doctor models --json
 uv run academic-slides-harness doctor secrets --json
 ```
 

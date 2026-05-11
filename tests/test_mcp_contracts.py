@@ -12,6 +12,7 @@ from academic_slides_harness.mcp.server import (
     create_run,
     extract_source_pages,
     ingest_source,
+    list_model_providers,
     list_theme_presets,
     list_visual_artifacts,
     plan_deck,
@@ -71,6 +72,7 @@ def test_mcp_tool_registry_contains_initial_contract() -> None:
         "create_run",
         "extract_source_pages",
         "ingest_source",
+        "list_model_providers",
         "list_theme_presets",
         "list_visual_artifacts",
         "plan_deck",
@@ -142,6 +144,7 @@ def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
         "AcademicSlidesHarness_CreateRun",
         "AcademicSlidesHarness_ExtractSourcePages",
         "AcademicSlidesHarness_IngestSource",
+        "AcademicSlidesHarness_ListModelProviders",
         "AcademicSlidesHarness_ListThemePresets",
         "AcademicSlidesHarness_ListVisualArtifacts",
         "AcademicSlidesHarness_PlanDeck",
@@ -216,6 +219,26 @@ def test_list_theme_presets_returns_default_visual_academic_preset() -> None:
     assert default["sha256"]
     assert default["colors"]["primary"] == "#1F4E79"
     assert default["logo"]["path"] is None
+
+
+def test_list_model_providers_returns_redacted_structured_content(monkeypatch) -> None:
+    fake_key = "sk-proj-" + ("x" * 48)
+    monkeypatch.setenv("OPENAI_API_KEY", fake_key)
+    monkeypatch.setattr(
+        "academic_slides_harness.llm.providers.OllamaProvider.is_available",
+        lambda _self: False,
+    )
+    monkeypatch.setattr(
+        "academic_slides_harness.llm.providers.OllamaProvider.list_models",
+        lambda _self: [],
+    )
+
+    result = list_model_providers()
+    raw_result = json.dumps(result.structured_content)
+
+    assert result.ok is True
+    assert result.structured_content["providers"]["openai"]["api_key_configured"] is True
+    assert fake_key not in raw_result
 
 
 def test_list_theme_presets_returns_typed_error_when_default_preset_is_invalid(

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from academic_slides_harness import __version__
+from academic_slides_harness.llm.providers import discover_model_providers
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,6 +22,8 @@ def main(argv: list[str] | None = None) -> int:
         return _doctor_arcade(args)
     if args.command == "doctor" and args.doctor_target == "secrets":
         return _doctor_secrets(args)
+    if args.command == "doctor" and args.doctor_target == "models":
+        return _doctor_models(args)
     if args.command == "doctor":
         parser.print_help(file=sys.stderr)
         return 2
@@ -59,6 +62,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="File or directory to scan. Can be passed more than once.",
     )
+
+    models = doctor_targets.add_parser(
+        "models",
+        help="List redacted local and configured model-provider availability.",
+    )
+    models.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    models.add_argument(
+        "--ollama-base-url",
+        default="http://127.0.0.1:11434",
+        help="Ollama server base URL to probe.",
+    )
+    models.add_argument("--timeout", type=float, default=1.0)
     return parser
 
 
@@ -95,6 +110,39 @@ def _doctor_secrets(args: argparse.Namespace) -> int:
                     f"- {finding['message']}"
                 )
     return 0 if report["ok"] else 1
+
+
+def _doctor_models(args: argparse.Namespace) -> int:
+    report = {
+        "ok": True,
+        "providers": discover_model_providers(
+            ollama_base_url=args.ollama_base_url,
+            timeout_seconds=args.timeout,
+        ),
+    }
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        providers = report["providers"]
+        ollama = providers["ollama"]
+        print(
+            "ollama: "
+            f"{'ok' if ollama['available'] else 'unavailable'} - "
+            f"{len(ollama['models'])} models"
+        )
+        openai = providers["openai"]
+        print(
+            "openai: "
+            f"api_key_configured={openai['api_key_configured']} "
+            f"base_url_configured={openai['base_url_configured']}"
+        )
+        azure = providers["azure_openai"]
+        print(
+            "azure_openai: "
+            f"api_key_configured={azure['api_key_configured']} "
+            f"endpoint_configured={azure['endpoint_configured']}"
+        )
+    return 0
 
 
 def diagnose_arcade(
