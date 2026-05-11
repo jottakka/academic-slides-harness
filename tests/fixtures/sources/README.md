@@ -10,3 +10,15 @@ chapter "Image Processing" from *Elements of Robotics*:
 The fixture is intentionally checked in so advanced end-to-end tests can run
 offline against a realistic academic PDF with prose, figures, formulas, and
 tables.
+
+Use this fixture for local smoke tests and deterministic visual QA examples:
+
+- PDF ingestion and page-count/hash checks.
+- Source page previews and zoom crops.
+- Beamer rendering and Tectonic compilation tests.
+- Deck preview and visual artifact metadata checks.
+
+Before a public release, verify that the upstream open-access terms permit
+redistribution of this checked-in PDF in the repository. If redistribution is not
+acceptable, replace it with a smaller fixture whose license is explicit and keep
+the same test coverage shape.

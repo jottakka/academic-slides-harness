@@ -6,7 +6,7 @@ A local Arcade configuration file on this machine contains plaintext credential 
 
 ## Reproduction
 
-1. Open the local Arcade config file at `C:\Users\fjlim\OneDrive\Documents\arcade-ai\engine.yaml`.
+1. Open the local Arcade config file at `<local-arcade-config>\engine.yaml`.
 2. Inspect the `llm` and `security` sections.
 3. Observe that credential-like values are stored directly in YAML instead of being referenced through environment variables or a secret store.
 
@@ -37,7 +37,7 @@ The config file includes credential-like values directly in the file.
 The harness now provides a redacted local scan command:
 
 ```powershell
-uv run academic-slides-harness doctor secrets --path C:\Users\fjlim\OneDrive\Documents\arcade-ai\engine.yaml --json
+uv run academic-slides-harness doctor secrets --path <local-arcade-config>\engine.yaml --json
 ```
 
 This command reports finding type, file path, and line number without printing

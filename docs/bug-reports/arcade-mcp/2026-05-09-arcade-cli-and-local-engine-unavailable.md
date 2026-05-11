@@ -2,7 +2,7 @@
 
 ## Summary
 
-The current Windows environment has Arcade packages installed in the project venv, and the Arcade CLI can be installed with `uv tool install arcade-mcp`. After install, the executable is available at `C:\Users\fjlim\.local\bin\arcade.exe`, but that directory is not on the current PATH. The configured local engine and worker ports are also closed.
+The current Windows environment has Arcade packages installed in the project venv, and the Arcade CLI can be installed with `uv tool install arcade-mcp`. After install, the executable is available under the user's local binary directory, but that directory is not on the current PATH. The configured local engine and worker ports are also closed.
 
 Correction: local Arcade MCP stdio work does not require the engine or worker
 ports. The local path is `arcade mcp stdio --cwd .` or this repo's
@@ -11,21 +11,21 @@ HTTP-specific diagnostics, not as the default live-test gate.
 
 ## Reproduction
 
-From `C:\Users\fjlim\Documents\Codex\academic-slides-harness`:
+From the repository root:
 
 ```powershell
 where.exe arcade-mcp
 uv run arcade-mcp --help
-C:\Users\fjlim\.local\bin\arcade.exe --version
+<user-local-bin>\arcade.exe --version
 Test-NetConnection -ComputerName 127.0.0.1 -Port 9099
 Test-NetConnection -ComputerName 127.0.0.1 -Port 8002
 ```
 
 ## Observed
 
-- `where.exe arcade-mcp` does not find an executable until `C:\Users\fjlim\.local\bin` is added to PATH.
+- `where.exe arcade-mcp` does not find an executable until the user's local binary directory is added to PATH.
 - `uv run arcade-mcp --help` fails with program not found.
-- `C:\Users\fjlim\.local\bin\arcade.exe --version` works after `uv tool install arcade-mcp`.
+- `<user-local-bin>\arcade.exe --version` works after `uv tool install arcade-mcp`.
 - TCP checks for `127.0.0.1:9099` and `127.0.0.1:8002` fail.
 
 ## Expected

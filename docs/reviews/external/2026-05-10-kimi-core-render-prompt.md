@@ -3,7 +3,7 @@ You are an external read-only reviewer for the Academic Slides Harness repo.
 ASCII-only output.
 
 Repo:
-- cwd: C:\Users\fjlim\Documents\Codex\academic-slides-harness
+- cwd: <repo-root>
 - Language/runtime: Python 3.13, uv, Arcade MCP, Pydantic, PyMuPDF/pdfplumber, Jinja2, Tectonic.
 
 Rules:
