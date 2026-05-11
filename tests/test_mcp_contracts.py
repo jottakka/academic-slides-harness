@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import fitz
+from PIL import Image, ImageDraw
 
 from academic_slides_harness.ingest.pdf import normalize_extracted_pdf_text
 from academic_slides_harness.mcp.server import (
@@ -22,6 +23,7 @@ from academic_slides_harness.mcp.server import (
     render_slide_preview,
     render_source_preview,
     render_zoom_crop,
+    validate_layout_overflow,
     validate_run,
 )
 from academic_slides_harness.render.theme import ThemePresetError
@@ -41,6 +43,13 @@ def _make_png(path: Path, *, width: int = 64, height: int = 48) -> Path:
     pixmap.clear_with(200)
     pixmap.save(path)
     return path
+
+
+def _draw_black_region(path: Path, *, box: tuple[int, int, int, int]) -> None:
+    with Image.open(path) as image:
+        draw = ImageDraw.Draw(image)
+        draw.rectangle(box, fill="black")
+        image.save(path)
 
 
 def _write_quality_sidecar(path: Path, *, warning_kind: str) -> None:
@@ -82,6 +91,7 @@ def test_mcp_tool_registry_contains_initial_contract() -> None:
         "render_slide_preview",
         "render_source_preview",
         "render_zoom_crop",
+        "validate_layout_overflow",
         "validate_run",
     } == MCP_TOOL_NAMES
 
@@ -155,6 +165,7 @@ def test_build_app_exposes_every_registered_tool_over_stdio_contract() -> None:
         "AcademicSlidesHarness_RenderSlidePreview",
         "AcademicSlidesHarness_RenderSourcePreview",
         "AcademicSlidesHarness_RenderZoomCrop",
+        "AcademicSlidesHarness_ValidateLayoutOverflow",
         "AcademicSlidesHarness_ValidateRun",
     }
     assert tool_names == expected
@@ -206,6 +217,28 @@ def test_render_layout_placeholders_supports_native_math_and_table_layouts(
         "equation_explanation",
         "table_explanation",
     }
+
+
+def test_render_layout_placeholders_supports_varied_academic_templates(
+    tmp_path: Path,
+) -> None:
+    result = render_layout_placeholders(
+        output_dir=str(tmp_path / "layouts"),
+        layouts=(
+            "correction_pipeline,derivation_steps,concept_matrix,"
+            "two_equation_comparison,mode_plot,checklist_summary"
+        ),
+    )
+
+    assert result.ok is True
+    assert result.structured_content["layouts"] == [
+        "correction_pipeline",
+        "derivation_steps",
+        "concept_matrix",
+        "two_equation_comparison",
+        "mode_plot",
+        "checklist_summary",
+    ]
 
 
 def test_render_layout_placeholders_rejects_existing_artifacts_by_default(
@@ -600,6 +633,61 @@ def test_render_rich_beamer_returns_typed_error_for_missing_visual(
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "missing_visual_artifact"
+
+
+def test_validate_layout_overflow_returns_typed_failure_with_region_crop(
+    tmp_path: Path,
+) -> None:
+    visual_path = _make_png(tmp_path / "deck_pdf-p1-144dpi.png", width=1000, height=600)
+    _draw_black_region(visual_path, box=(660, 240, 820, 270))
+
+    result = validate_layout_overflow(
+        screenshots_dir=str(tmp_path),
+        output_dir=str(tmp_path / "overflow"),
+        slides="1",
+        protected_regions=[
+            {
+                "label": "right rail guard",
+                "x": 0.64,
+                "y": 0.18,
+                "width": 0.10,
+                "height": 0.60,
+                "max_ink_ratio": 0.01,
+            }
+        ],
+    )
+
+    assert result.ok is False
+    error = result.structured_content["error"]
+    assert error["kind"] == "layout_overflow_detected"
+    warning = error["details"]["warnings"][0]
+    assert warning["kind"] == "protected_region_ink"
+    assert Path(warning["details"]["crop_path"]).is_file()
+
+
+def test_validate_layout_overflow_passes_clean_slide_preview(tmp_path: Path) -> None:
+    visual_path = _make_png(tmp_path / "deck_pdf-p1-144dpi.png", width=1000, height=600)
+    _draw_black_region(visual_path, box=(80, 120, 420, 300))
+
+    result = validate_layout_overflow(
+        screenshots_dir=str(tmp_path),
+        output_dir=str(tmp_path / "overflow"),
+        slides="1",
+        protected_regions=[
+            {
+                "label": "right rail guard",
+                "x": 0.64,
+                "y": 0.18,
+                "width": 0.10,
+                "height": 0.60,
+                "max_ink_ratio": 0.01,
+            }
+        ],
+    )
+
+    assert result.ok is True
+    assert result.structured_content["ok"] is True
+    assert result.structured_content["warnings"] == []
 
 
 def test_render_rich_beamer_accepts_native_equation_layout_without_visual(

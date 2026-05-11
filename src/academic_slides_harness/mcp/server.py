@@ -35,6 +35,12 @@ from academic_slides_harness.render.theme import (
     theme_preset_path,
 )
 from academic_slides_harness.visualize.options import CropBox, RenderOptions, parse_page_selection
+from academic_slides_harness.visualize.overflow import (
+    LayoutOverflowRegion,
+    assess_layout_overflow,
+    default_layout_overflow_regions,
+    parse_tex_box_warnings,
+)
 from academic_slides_harness.visualize.preview import (
     render_pdf_pages,
 )
@@ -60,6 +66,7 @@ MCP_TOOL_NAMES = frozenset(
         "render_slide_preview",
         "render_source_preview",
         "render_zoom_crop",
+        "validate_layout_overflow",
         "list_visual_artifacts",
     }
 )
@@ -581,6 +588,122 @@ def list_visual_artifacts(
     )
 
 
+def validate_layout_overflow(
+    *,
+    screenshots_dir: Annotated[
+        str,
+        "Directory containing deck slide PNG previews from RenderSlidePreview.",
+    ],
+    output_dir: Annotated[
+        str,
+        "Directory where overflow evidence crops should be written.",
+    ],
+    slides: Annotated[
+        str,
+        "One-based slide selection, for example '1-3,5', or 'all'.",
+    ] = "all",
+    protected_regions: Annotated[
+        list[dict[str, Any]] | None,
+        (
+            "Optional normalized or pixel regions to keep clear. Each object supports label, "
+            "x, y, width, height, max_ink_ratio, normalized, and ink_luminance_threshold."
+        ),
+    ] = None,
+    tectonic_log_path: Annotated[
+        str,
+        "Optional Tectonic log path to parse for Overfull/Underfull box warnings.",
+    ] = "",
+) -> ToolResult:
+    """Validate rendered slide previews for protected-region ink and TeX box warnings."""
+    screenshots_path = Path(screenshots_dir).resolve()
+    if not screenshots_path.is_dir():
+        return ToolResult.error(
+            kind="missing_input",
+            message=f"Screenshots directory not found: {screenshots_path}",
+            details={"screenshots_dir": str(screenshots_path)},
+        )
+    try:
+        selected_previews = _select_slide_preview_paths(
+            screenshots_dir=screenshots_path,
+            slides=slides,
+        )
+        regions = _parse_layout_overflow_regions(protected_regions)
+    except ValueError as exc:
+        return _exception_result(kind="invalid_layout_overflow_options", exc=exc)
+    out_dir = Path(output_dir).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    all_warnings: list[dict[str, Any]] = []
+    reports: list[dict[str, Any]] = []
+    for preview_path in selected_previews:
+        report = assess_layout_overflow(preview_path, regions=regions)
+        report_content = report.to_structured_content()
+        report_warnings: list[dict[str, Any]] = []
+        for warning in report.warnings:
+            warning_content = warning.to_structured_content()
+            crop_metadata = _write_layout_overflow_crop(
+                image_path=preview_path,
+                bbox=tuple(warning_content["details"]["bbox_px"]),
+                output_dir=out_dir,
+                label=warning_content["details"]["label"],
+            )
+            warning_content["details"]["crop_path"] = crop_metadata["path"]
+            warning_content["details"]["crop_width"] = crop_metadata["width"]
+            warning_content["details"]["crop_height"] = crop_metadata["height"]
+            warning_content["details"]["crop_sha256"] = crop_metadata["sha256"]
+            warning_content["details"]["slide_preview_path"] = str(preview_path.resolve())
+            report_warnings.append(warning_content)
+            all_warnings.append(warning_content)
+        report_content["warnings"] = report_warnings
+        reports.append(report_content)
+
+    tex_box_warnings = None
+    if tectonic_log_path.strip():
+        log_path = Path(tectonic_log_path).resolve()
+        if not log_path.is_file():
+            return ToolResult.error(
+                kind="missing_input",
+                message=f"Tectonic log not found: {log_path}",
+                details={"tectonic_log_path": str(log_path)},
+            )
+        tex_box_warnings = parse_tex_box_warnings(log_path.read_text(encoding="utf-8"))
+        if tex_box_warnings["overfull_count"]:
+            all_warnings.append(
+                {
+                    "kind": "tectonic_overfull_hbox",
+                    "severity": "error",
+                    "message": "Tectonic reported overfull hbox warnings.",
+                    "details": {
+                        "tectonic_log_path": str(log_path),
+                        "overfull_count": tex_box_warnings["overfull_count"],
+                        "overfull_lines": tex_box_warnings["overfull_lines"],
+                    },
+                }
+            )
+
+    structured_content = {
+        "ok": not all_warnings,
+        "screenshots_dir": str(screenshots_path),
+        "output_dir": str(out_dir),
+        "slide_count": len(selected_previews),
+        "slides": [_slide_number_from_preview_path(path) for path in selected_previews],
+        "regions": [region.to_structured_content() for region in regions],
+        "reports": reports,
+        "warnings": all_warnings,
+        "tex_box_warnings": tex_box_warnings,
+    }
+    if all_warnings:
+        return ToolResult.error(
+            kind="layout_overflow_detected",
+            message="Rendered slide previews failed layout overflow validation.",
+            details=structured_content,
+        )
+    return ToolResult.success(
+        message=f"Validated {len(selected_previews)} slide preview(s) for layout overflow",
+        structured_content=structured_content,
+    )
+
+
 def compile_rendered_beamer(
     *,
     tex_path: Annotated[str, "Path to the Beamer .tex file."],
@@ -617,6 +740,7 @@ def build_app() -> MCPApp:
         render_beamer,
         render_layout_placeholders,
         render_rich_beamer,
+        validate_layout_overflow,
         validate_run,
         render_slide_preview,
         render_source_preview,
@@ -1425,6 +1549,118 @@ def _png_metadata(path: Path) -> dict[str, Any]:
     return result
 
 
+def _select_slide_preview_paths(*, screenshots_dir: Path, slides: str) -> list[Path]:
+    raw_slides = slides.strip().lower()
+    if raw_slides == "all":
+        preview_paths = [
+            path
+            for path in screenshots_dir.glob("deck_pdf-p*-*.png")
+            if "-crop-" not in path.name and _slide_number_from_preview_path(path) is not None
+        ]
+        preview_paths.sort(key=lambda path: (_slide_number_from_preview_path(path) or 0, path.name))
+        if not preview_paths:
+            raise ValueError(f"No deck slide previews found in {screenshots_dir}")
+        return preview_paths
+    selected_slides = parse_page_selection(slides)
+    preview_paths: list[Path] = []
+    missing_slides: list[int] = []
+    for slide in selected_slides:
+        matches = sorted(
+            path
+            for path in screenshots_dir.glob(f"deck_pdf-p{slide}-*.png")
+            if "-crop-" not in path.name
+        )
+        if not matches:
+            missing_slides.append(slide)
+            continue
+        preview_paths.append(matches[0])
+    if missing_slides:
+        raise ValueError(
+            "Missing deck slide preview(s): " + ", ".join(str(slide) for slide in missing_slides)
+        )
+    return preview_paths
+
+
+def _slide_number_from_preview_path(path: Path) -> int | None:
+    match = re.match(r"^deck_pdf-p(?P<page>\d+)-", path.name)
+    if match is None:
+        return None
+    return int(match.group("page"))
+
+
+def _parse_layout_overflow_regions(
+    protected_regions: list[dict[str, Any]] | None,
+) -> list[LayoutOverflowRegion]:
+    if not protected_regions:
+        return default_layout_overflow_regions()
+    regions: list[LayoutOverflowRegion] = []
+    for index, raw_region in enumerate(protected_regions, start=1):
+        if not isinstance(raw_region, dict):
+            raise ValueError(f"Protected region {index} must be an object.")
+        label = raw_region.get("label", f"protected region {index}")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError(f"Protected region {index} label must be a non-empty string.")
+        normalized = raw_region.get("normalized", True)
+        if not isinstance(normalized, bool):
+            raise ValueError(f"Protected region {index} normalized must be a boolean.")
+        try:
+            region = LayoutOverflowRegion(
+                label=label.strip(),
+                x=float(raw_region["x"]),
+                y=float(raw_region["y"]),
+                width=float(raw_region["width"]),
+                height=float(raw_region["height"]),
+                max_ink_ratio=float(raw_region.get("max_ink_ratio", 0.01)),
+                normalized=normalized,
+                ink_luminance_threshold=int(raw_region.get("ink_luminance_threshold", 185)),
+            )
+        except KeyError as exc:
+            raise ValueError(
+                f"Protected region {index} is missing required field: {exc.args[0]}"
+            ) from exc
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Protected region {index} fields must be numeric.") from exc
+        _validate_layout_overflow_region(region, index=index)
+        regions.append(region)
+    return regions
+
+
+def _validate_layout_overflow_region(region: LayoutOverflowRegion, *, index: int) -> None:
+    if region.width <= 0 or region.height <= 0:
+        raise ValueError(f"Protected region {index} width and height must be positive.")
+    if region.max_ink_ratio < 0 or region.max_ink_ratio > 1:
+        raise ValueError(f"Protected region {index} max_ink_ratio must be between 0 and 1.")
+    if not 0 <= region.ink_luminance_threshold <= 255:
+        raise ValueError(
+            f"Protected region {index} ink_luminance_threshold must be between 0 and 255."
+        )
+    if region.normalized and (
+        region.x < 0 or region.y < 0 or region.x + region.width > 1 or region.y + region.height > 1
+    ):
+        raise ValueError(f"Protected region {index} normalized coordinates must stay within 0..1.")
+
+
+def _write_layout_overflow_crop(
+    *,
+    image_path: Path,
+    bbox: tuple[int, int, int, int],
+    output_dir: Path,
+    label: str,
+) -> dict[str, Any]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / (
+        f"layout-overflow-{image_path.stem}-{_artifact_safe_label(label)}.png"
+    )
+    with Image.open(image_path) as image:
+        image.crop(bbox).save(output_path)
+    return _png_metadata(output_path)
+
+
+def _artifact_safe_label(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip()).strip("-").lower()
+    return slug or "region"
+
+
 def _slide_bullets(slide: dict[str, Any]) -> list[str] | None:
     if "bullets" in slide:
         bullets = slide["bullets"]
@@ -1614,6 +1850,8 @@ _DRAFT_VISUAL_DECK_PROMPT = "\n".join(
         "- Call `RenderRichBeamer`; do not fall back to generic bullet-summary decks.",
         "- Every claim must be tied to a source page or visual artifact.",
         "- Keep text inside the layout limits from `academic-slides://schemas/rich_slide_plan`.",
+        "- After `RenderSlidePreview`, call `ValidateLayoutOverflow` with template-specific "
+        "protected regions when a slide has columns, rails, or long equations.",
         "- If a source image contains too much embedded PDF text, prefer a tighter crop.",
         "- If the image is too small, low contrast, or illegible, report the risk "
         "instead of using it.",
@@ -1639,6 +1877,7 @@ _VISUAL_QUALITY_RUBRIC = "\n".join(
         "when possible.",
         "- Formula and compact-table slides use native LaTeX when the content can be "
         "reconstructed faithfully.",
+        "- Long native equations do not cross protected gutters or neighboring rails.",
         "- A crop is justified only when it preserves visual evidence that native LaTeX cannot.",
         "- The slide has one dominant visual hierarchy: title, evidence, claim, citation.",
         "- Image dimensions, hash, path, DPI, and page metadata are present.",

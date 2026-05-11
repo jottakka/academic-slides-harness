@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 EXPECTED_TOOL_NAMES = {
     "AcademicSlidesHarness_CompileRenderedBeamer",
@@ -20,6 +21,7 @@ EXPECTED_TOOL_NAMES = {
     "AcademicSlidesHarness_RenderSlidePreview",
     "AcademicSlidesHarness_RenderSourcePreview",
     "AcademicSlidesHarness_RenderZoomCrop",
+    "AcademicSlidesHarness_ValidateLayoutOverflow",
     "AcademicSlidesHarness_ValidateRun",
 }
 
@@ -54,6 +56,9 @@ async def _run_local_stdio_smoke(tmp_path: Path) -> StdioSmoke:
         command=sys.executable,
         args=[str(server_entrypoint), "stdio"],
     )
+    screenshots_dir = tmp_path / "arcade-preview"
+    screenshots_dir.mkdir()
+    Image.new("RGB", (1000, 600), "white").save(screenshots_dir / "deck_pdf-p1-144dpi.png")
 
     async with (
         mcp_stdio.stdio_client(server) as (read_stream, write_stream),
@@ -65,8 +70,27 @@ async def _run_local_stdio_smoke(tmp_path: Path) -> StdioSmoke:
             "AcademicSlidesHarness_CreateRun",
             {"base_dir": str(tmp_path), "title": "Arcade Live Stdio Smoke"},
         )
+        layout_overflow_result = await session.call_tool(
+            "AcademicSlidesHarness_ValidateLayoutOverflow",
+            {
+                "screenshots_dir": str(screenshots_dir),
+                "output_dir": str(tmp_path / "arcade-overflow"),
+                "slides": "1",
+                "protected_regions": [
+                    {
+                        "label": "center gutter",
+                        "x": 0.61,
+                        "y": 0.13,
+                        "width": 0.045,
+                        "height": 0.74,
+                        "max_ink_ratio": 0.015,
+                    }
+                ],
+            },
+        )
 
     assert not create_run_result.isError
+    assert not layout_overflow_result.isError
     created_run_dir = tmp_path / "arcade-live-stdio-smoke"
     return StdioSmoke(
         tool_names={tool.name for tool in tools_response.tools},

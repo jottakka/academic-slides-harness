@@ -159,6 +159,218 @@ LAYOUT_PATTERNS: dict[str, RichLayoutPattern] = {
             ],
         },
     ),
+    "correction_pipeline": RichLayoutPattern(
+        name="correction_pipeline",
+        purpose="Show a correction workflow as named stages with one mathematical anchor.",
+        when_to_use=(
+            "Use for INS, signal-processing, calibration, or numerical pipelines where "
+            "the audience must see order and dependency, not a generic bullet list."
+        ),
+        required_blocks=("steps", "latex_equation", "claim", "source_citation"),
+        suggested_text_limits={
+            "title": 68,
+            "learning_goal": 105,
+            "step": 42,
+            "max_steps": 5,
+            "latex": 360,
+            "caption": 100,
+            "claim": 120,
+            "explanation": 160,
+        },
+        example={
+            "title": "Earth-rate corrections enter before integration",
+            "layout": "correction_pipeline",
+            "learning_goal": "Track where correction terms enter the navigation equations.",
+            "blocks": [
+                {
+                    "type": "steps",
+                    "items": [
+                        "Read inertial rates",
+                        "Subtract Earth rotation",
+                        "Apply transport correction",
+                        "Integrate corrected state",
+                    ],
+                },
+                {
+                    "type": "latex_equation",
+                    "latex": "\\dot{v}^n = R_b^n f^b + g^n - (2\\Omega_{ie}^n+\\Omega_{en}^n)v^n",
+                    "caption": "One equation anchors the pipeline.",
+                },
+                {"type": "claim", "text": "Correction order changes accumulated navigation error."},
+                {"type": "source_citation", "source_page": 3},
+            ],
+        },
+    ),
+    "derivation_steps": RichLayoutPattern(
+        name="derivation_steps",
+        purpose="Break a short derivation into readable native LaTeX steps.",
+        when_to_use=(
+            "Use when the source has a formula chain that should be taught line by line "
+            "instead of pasted as one oversized equation."
+        ),
+        required_blocks=("latex_equation", "steps", "claim", "source_citation"),
+        suggested_text_limits={
+            "title": 68,
+            "learning_goal": 105,
+            "step": 48,
+            "max_steps": 4,
+            "latex": 440,
+            "caption": 100,
+            "claim": 120,
+            "explanation": 160,
+        },
+        example={
+            "title": "Inclination separates from heading",
+            "layout": "derivation_steps",
+            "learning_goal": "Read each component of the attitude relation.",
+            "blocks": [
+                {
+                    "type": "latex_equation",
+                    "latex": (
+                        "\\phi=\\operatorname{atan2}(-a_y,-a_z),\\quad "
+                        "\\theta=\\operatorname{atan2}(a_x,\\sqrt{a_y^2+a_z^2})"
+                    ),
+                    "caption": "Split long equations across slides when needed.",
+                },
+                {
+                    "type": "steps",
+                    "items": [
+                        "Use gravity as local vertical",
+                        "Solve roll from lateral and vertical axes",
+                        "Solve pitch from forward and vertical magnitude",
+                    ],
+                },
+                {"type": "claim", "text": "Yaw still needs an external horizontal reference."},
+                {"type": "source_citation", "source_page": 4},
+            ],
+        },
+    ),
+    "concept_matrix": RichLayoutPattern(
+        name="concept_matrix",
+        purpose="Compare concepts, assumptions, and consequences in a compact matrix.",
+        when_to_use=(
+            "Use when the source contrasts sensors, error terms, coordinate frames, or "
+            "algorithmic assumptions across two to four dimensions."
+        ),
+        required_blocks=("latex_table", "claim", "source_citation"),
+        suggested_text_limits={
+            "title": 68,
+            "learning_goal": 105,
+            "caption": 100,
+            "claim": 120,
+            "explanation": 160,
+            "table_cell": 34,
+            "max_rows": 5,
+            "max_columns": 4,
+        },
+        example={
+            "title": "Error terms differ by physical origin",
+            "layout": "concept_matrix",
+            "learning_goal": "Compare which correction term belongs to each effect.",
+            "blocks": [
+                {
+                    "type": "latex_table",
+                    "caption": "Use short cells and move detail to speaker notes.",
+                    "headers": ["Term", "Origin", "Effect"],
+                    "rows": [
+                        ["Coriolis", "Earth rotation", "Velocity-coupled"],
+                        ["Centrifugal", "Rotating frame", "Position-coupled"],
+                    ],
+                },
+                {"type": "claim", "text": "The terms look small but accumulate in precision INS."},
+                {"type": "source_citation", "source_page": 3},
+            ],
+        },
+    ),
+    "two_equation_comparison": RichLayoutPattern(
+        name="two_equation_comparison",
+        purpose="Place two native equations side by side with one explicit contrast.",
+        when_to_use=(
+            "Use when two formulations are easy to confuse and the slide must show "
+            "what changes between them."
+        ),
+        required_blocks=("latex_equation", "claim", "source_citation"),
+        suggested_text_limits={
+            "title": 68,
+            "learning_goal": 105,
+            "latex": 520,
+            "caption": 90,
+            "claim": 120,
+            "explanation": 150,
+        },
+        example={
+            "title": "Roll and pitch are observable; yaw is not",
+            "layout": "two_equation_comparison",
+            "learning_goal": "Contrast vertical and horizontal observability.",
+            "blocks": [
+                {
+                    "type": "latex_equation",
+                    "latex": (
+                        "\\phi=\\operatorname{atan2}(-a_y,-a_z)\\qquad "
+                        "\\psi\\;\\text{requires external heading}"
+                    ),
+                    "caption": "Use one slide only if both expressions stay readable.",
+                },
+                {"type": "claim", "text": "Gravity constrains tilt but not horizontal heading."},
+                {"type": "source_citation", "source_page": 4},
+            ],
+        },
+    ),
+    "mode_plot": RichLayoutPattern(
+        name="mode_plot",
+        purpose="Feature one plot, mode diagram, or source curve with minimal text.",
+        when_to_use=(
+            "Use when a plot or diagram is the evidence and native reconstruction would "
+            "hide the visual structure."
+        ),
+        required_blocks=("visual", "claim", "source_citation"),
+        suggested_text_limits={"title": 68, "learning_goal": 100, "claim": 115, "explanation": 150},
+        example={
+            "title": "Error growth reveals the dominant mode",
+            "layout": "mode_plot",
+            "learning_goal": "Use the plotted trend to identify the dominant behavior.",
+            "blocks": [
+                {"type": "visual", "artifact_path": "<absolute-path-to-plot-crop-png>"},
+                {"type": "claim", "text": "The mode is visible from the curve shape, not text."},
+                {"type": "source_citation", "source_page": 6},
+            ],
+        },
+    ),
+    "checklist_summary": RichLayoutPattern(
+        name="checklist_summary",
+        purpose="Close a section with an audit checklist tied to source evidence.",
+        when_to_use=(
+            "Use after dense derivation or pipeline slides to make the operational "
+            "takeaway testable."
+        ),
+        required_blocks=("steps", "claim", "source_citation"),
+        suggested_text_limits={
+            "title": 62,
+            "learning_goal": 90,
+            "step": 44,
+            "max_steps": 5,
+            "claim": 130,
+            "explanation": 150,
+        },
+        example={
+            "title": "Before trusting the INS estimate",
+            "layout": "checklist_summary",
+            "learning_goal": "Turn the section into validation actions.",
+            "blocks": [
+                {
+                    "type": "steps",
+                    "items": [
+                        "Check reference frame",
+                        "Check correction terms",
+                        "Check sensor observability",
+                        "Check accumulated drift",
+                    ],
+                },
+                {"type": "claim", "text": "A precise result still needs explicit assumptions."},
+                {"type": "source_citation", "source_page": 8},
+            ],
+        },
+    ),
     "takeaway": RichLayoutPattern(
         name="takeaway",
         purpose="Compress a section into one memorable conclusion.",
@@ -272,7 +484,9 @@ def rich_slide_schema_markdown() -> str:
             "",
             (
                 "Supported layouts: hero_visual, figure_explanation, workflow_steps, "
-                "equation_explanation, table_explanation, takeaway."
+                "equation_explanation, table_explanation, correction_pipeline, "
+                "derivation_steps, concept_matrix, two_equation_comparison, mode_plot, "
+                "checklist_summary, takeaway."
             ),
             (
                 "Supported block types: visual, claim, explanation, steps, latex_equation, "
@@ -283,6 +497,14 @@ def rich_slide_schema_markdown() -> str:
             "- `hero_visual` and `figure_explanation` require one `visual` block.",
             "- `equation_explanation` requires one `latex_equation` block.",
             "- `table_explanation` requires one `latex_table` block.",
+            "- Use `correction_pipeline` for ordered correction or calibration logic; "
+            "include steps plus a native equation when possible.",
+            "- Use `derivation_steps` when a formula needs to be split into readable "
+            "native LaTeX stages.",
+            "- Use `concept_matrix` for compact comparisons; keep cells short.",
+            "- Use `two_equation_comparison` only when both equations remain readable.",
+            "- Use `mode_plot` for plot or diagram evidence that should stay visual.",
+            "- Use `checklist_summary` to convert a dense section into validation actions.",
             "- Prefer `latex_equation` for formulas that can be reconstructed faithfully; "
             "do not use a text-heavy crop just to show a formula.",
             "- Prefer `latex_table` for compact tables that can be represented as headers "
@@ -469,6 +691,152 @@ def _draw_placeholder(
             label_font,
             small_font,
         )
+    elif pattern.name == "correction_pipeline":
+        step_w = (width - (margin * 2) - 54) // 4
+        y0 = body_top + 78
+        for index in range(4):
+            x0 = margin + index * (step_w + 18)
+            _box(
+                draw,
+                (x0, y0, x0 + step_w, y0 + 128),
+                f"CORRECTION {index + 1}",
+                pale if index % 2 == 0 else "white",
+                ink,
+                label_font,
+                small_font,
+            )
+            if index < 3:
+                draw.line(
+                    (x0 + step_w + 3, y0 + 64, x0 + step_w + 15, y0 + 64),
+                    fill=accent,
+                    width=4,
+                )
+        _box(
+            draw,
+            (int(width * 0.18), body_top + 250, int(width * 0.82), body_top + 395),
+            "NATIVE EQUATION ANCHOR",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+    elif pattern.name == "derivation_steps":
+        for index in range(3):
+            y0 = body_top + 34 + index * 132
+            _box(
+                draw,
+                (int(width * 0.14), y0, int(width * 0.70), y0 + 96),
+                f"LATEX STEP {index + 1}",
+                pale if index == 1 else "white",
+                ink,
+                label_font,
+                small_font,
+            )
+        _box(
+            draw,
+            (int(width * 0.74), body_top + 78, width - margin, body_top + 305),
+            "CONTRAST CLAIM",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+    elif pattern.name == "concept_matrix":
+        table_x0 = margin
+        table_y0 = body_top + 28
+        table_x1 = int(width * 0.70)
+        table_y1 = body_bottom - 24
+        _box(
+            draw,
+            (table_x0, table_y0, table_x1, table_y1),
+            "CONCEPT MATRIX",
+            pale,
+            ink,
+            label_font,
+            small_font,
+        )
+        for column in range(1, 4):
+            x = table_x0 + column * ((table_x1 - table_x0) // 4)
+            draw.line((x, table_y0 + 68, x, table_y1 - 44), fill=accent, width=2)
+        for row in range(1, 4):
+            y = table_y0 + 68 + row * ((table_y1 - table_y0 - 112) // 4)
+            draw.line((table_x0 + 18, y, table_x1 - 18, y), fill=accent, width=2)
+        _box(
+            draw,
+            (int(width * 0.74), body_top + 92, width - margin, body_top + 292),
+            "KEY CONTRAST",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+    elif pattern.name == "two_equation_comparison":
+        _box(
+            draw,
+            (margin, body_top + 70, int(width * 0.48), body_top + 285),
+            "EQUATION A",
+            pale,
+            ink,
+            label_font,
+            small_font,
+        )
+        _box(
+            draw,
+            (int(width * 0.52), body_top + 70, width - margin, body_top + 285),
+            "EQUATION B",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+        _box(
+            draw,
+            (int(width * 0.20), body_top + 330, int(width * 0.80), body_bottom),
+            "EXPLICIT CONTRAST",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+    elif pattern.name == "mode_plot":
+        plot_box = (margin, body_top + 20, int(width * 0.68), body_bottom - 20)
+        _box(draw, plot_box, "PLOT / MODE DIAGRAM", pale, ink, label_font, small_font)
+        x0, y0, x1, y1 = plot_box
+        draw.line((x0 + 52, y1 - 78, x1 - 40, y1 - 78), fill=accent, width=3)
+        draw.line((x0 + 52, y0 + 58, x0 + 52, y1 - 78), fill=accent, width=3)
+        draw.arc((x0 + 90, y0 + 120, x1 - 90, y1 - 150), 195, 355, fill=ink, width=5)
+        _box(
+            draw,
+            (int(width * 0.72), body_top + 84, width - margin, body_top + 290),
+            "READOUT CLAIM",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+    elif pattern.name == "checklist_summary":
+        _box(
+            draw,
+            (int(width * 0.16), body_top + 34, int(width * 0.84), body_top + 118),
+            "SECTION CLAIM",
+            pale,
+            ink,
+            label_font,
+            small_font,
+        )
+        row_x0 = int(width * 0.20)
+        row_x1 = int(width * 0.80)
+        for index in range(4):
+            y0 = body_top + 154 + index * 72
+            _box(
+                draw,
+                (row_x0, y0, row_x1, y0 + 48),
+                f"CHECK {index + 1}",
+                "white",
+                ink,
+                label_font,
+                small_font,
+            )
     else:
         _box(
             draw,

@@ -35,6 +35,7 @@ create run
   -> render Beamer or rich Beamer source
   -> compile PDF with Tectonic
   -> render slide previews and crops
+  -> validate rendered layout overflow
   -> list visual artifacts
   -> validate run
 ```
@@ -113,6 +114,9 @@ Visual artifacts:
 - `AcademicSlidesHarness_RenderSlidePreview`: render compiled deck pages to PNG.
 - `AcademicSlidesHarness_RenderZoomCrop`: render a focused crop from a source or
   deck PDF.
+- `AcademicSlidesHarness_ValidateLayoutOverflow`: inspect deck preview PNGs for
+  ink inside protected layout regions and optional Tectonic overfull boxes,
+  returning evidence crops for failures.
 - `AcademicSlidesHarness_ListVisualArtifacts`: list PNG artifacts and metadata.
 
 Rich deck helpers:
@@ -172,6 +176,7 @@ Examples include:
 - `image_too_small`
 - `visual_quality_failed`
 - `text_overflow_risk`
+- `layout_overflow_detected`
 
 This makes the tools usable by agents that need to recover or choose a narrower
 next step.

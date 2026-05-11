@@ -48,6 +48,12 @@ class RichBeamerSlide:
         "takeaway",
         "equation_explanation",
         "table_explanation",
+        "correction_pipeline",
+        "derivation_steps",
+        "concept_matrix",
+        "two_equation_comparison",
+        "mode_plot",
+        "checklist_summary",
     ]
     blocks: list[RichSlideBlock]
     learning_goal: str | None = None
@@ -182,6 +188,7 @@ def _render_rich_slide_body(slide: RichBeamerSlide) -> str:
     visual = _first_block(slide, "visual")
     equation = _first_block(slide, "latex_equation")
     table = _first_block(slide, "latex_table")
+    steps = _first_block(slide, "steps")
     non_visual_blocks = [block for block in slide.blocks if block.type != "visual"]
     if slide.layout == "figure_explanation" and visual is not None:
         return "\n".join(
@@ -208,6 +215,77 @@ def _render_rich_slide_body(slide: RichBeamerSlide) -> str:
             slide=slide,
             focus=table,
             focus_type="latex_table",
+        )
+    if slide.layout == "correction_pipeline" and equation is not None and steps is not None:
+        return "\n".join(
+            [
+                _render_learning_goal(slide),
+                "\\begin{columns}[T,onlytextwidth]",
+                "\\begin{column}{0.42\\textwidth}",
+                _render_rich_block(steps),
+                "\\end{column}",
+                "\\begin{column}{0.54\\textwidth}",
+                _render_rich_block(equation),
+                "\\end{column}",
+                "\\end{columns}",
+                *[
+                    _render_rich_block(block)
+                    for block in slide.blocks
+                    if block.type in {"claim", "source_citation"}
+                ],
+            ]
+        )
+    if slide.layout == "derivation_steps" and equation is not None:
+        return _render_native_focus_layout(
+            slide=slide,
+            focus=equation,
+            focus_type="latex_equation",
+        )
+    if slide.layout == "concept_matrix" and table is not None:
+        return _render_native_focus_layout(
+            slide=slide,
+            focus=table,
+            focus_type="latex_table",
+        )
+    if slide.layout == "two_equation_comparison" and equation is not None:
+        return "\n".join(
+            [
+                _render_learning_goal(slide),
+                _render_rich_block(equation),
+                *[
+                    _render_rich_block(block)
+                    for block in slide.blocks
+                    if block.type in {"claim", "explanation", "source_citation"}
+                ],
+            ]
+        )
+    if slide.layout == "mode_plot" and visual is not None:
+        return "\n".join(
+            [
+                _render_learning_goal(slide),
+                "\\begin{columns}[T,onlytextwidth]",
+                "\\begin{column}{0.68\\textwidth}",
+                _render_visual_block(visual, width="\\linewidth", height="0.64\\textheight"),
+                "\\end{column}",
+                "\\begin{column}{0.28\\textwidth}",
+                *[_render_rich_block(block, rail=True) for block in non_visual_blocks],
+                "\\end{column}",
+                "\\end{columns}",
+            ]
+        )
+    if slide.layout == "checklist_summary" and steps is not None:
+        return "\n".join(
+            [
+                _render_learning_goal(slide),
+                *[_render_rich_block(block) for block in slide.blocks if block.type == "claim"],
+                "\\vspace{0.12cm}",
+                _render_rich_block(steps),
+                *[
+                    _render_rich_block(block)
+                    for block in slide.blocks
+                    if block.type in {"explanation", "source_citation"}
+                ],
+            ]
         )
     if slide.layout == "hero_visual" and visual is not None:
         return "\n".join(

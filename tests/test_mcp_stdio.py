@@ -89,6 +89,7 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
         "AcademicSlidesHarness_RenderSlidePreview",
         "AcademicSlidesHarness_RenderSourcePreview",
         "AcademicSlidesHarness_RenderZoomCrop",
+        "AcademicSlidesHarness_ValidateLayoutOverflow",
         "AcademicSlidesHarness_ValidateRun",
     }
     assert not result.isError
