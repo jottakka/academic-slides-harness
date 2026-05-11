@@ -61,7 +61,7 @@ worker.
 Se o Arcade estiver instalado fora do `PATH`, passe o caminho explicitamente:
 
 ```powershell
-uv run academic-slides-harness doctor arcade --arcade-cli-path C:\path\to\arcade.exe --json
+uv run academic-slides-harness doctor arcade --arcade-cli-path <path-to-arcade-executable> --json
 ```
 
 ## MCP Stdio
@@ -104,13 +104,12 @@ O harness procura o Tectonic nesta ordem:
 
 1. `ACADEMIC_SLIDES_TECTONIC_PATH`
 2. `TECTONIC_PATH`
-3. um executável Tectonic empacotado pelo Codex, quando presente
-4. `tectonic` no `PATH`
+3. `tectonic` no `PATH`
 
 Exemplo em PowerShell:
 
 ```powershell
-$env:ACADEMIC_SLIDES_TECTONIC_PATH = "C:\path\to\tectonic.exe"
+$env:ACADEMIC_SLIDES_TECTONIC_PATH = "<path-to-tectonic-executable>"
 uv run pytest tests/test_open_access_book_e2e.py -q
 ```
 

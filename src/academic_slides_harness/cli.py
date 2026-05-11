@@ -204,11 +204,8 @@ def _check_arcade_cli(arcade_cli_path: str | None) -> dict[str, Any]:
         return {
             "name": "arcade_cli",
             "ok": False,
-            "message": "Arcade CLI was not found on PATH or at the expected Windows install path.",
-            "details": {
-                "expected_path": str(_default_windows_arcade_path()),
-                "configured_path": arcade_cli_path,
-            },
+            "message": "Arcade CLI was not found on PATH or at the configured path.",
+            "details": {"configured_path": arcade_cli_path},
         }
     return {
         "name": "arcade_cli",
@@ -276,12 +273,7 @@ def _resolve_arcade_cli(arcade_cli_path: str | None) -> Path | None:
         if found is not None:
             return Path(found).resolve()
 
-    fallback = _default_windows_arcade_path()
-    return fallback.resolve() if fallback.exists() else None
-
-
-def _default_windows_arcade_path() -> Path:
-    return Path.home() / ".local" / "bin" / "arcade.exe"
+    return None
 
 
 def _default_secret_paths() -> list[Path]:

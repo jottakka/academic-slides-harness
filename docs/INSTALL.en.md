@@ -60,7 +60,7 @@ This checks that an Arcade CLI is available and that the local stdio entrypoint
 If Arcade is installed somewhere that is not on `PATH`, pass an explicit path:
 
 ```powershell
-uv run academic-slides-harness doctor arcade --arcade-cli-path C:\path\to\arcade.exe --json
+uv run academic-slides-harness doctor arcade --arcade-cli-path <path-to-arcade-executable> --json
 ```
 
 ## MCP Stdio
@@ -103,13 +103,12 @@ The harness looks for Tectonic in this order:
 
 1. `ACADEMIC_SLIDES_TECTONIC_PATH`
 2. `TECTONIC_PATH`
-3. a bundled Codex Tectonic executable, when present
-4. `tectonic` on `PATH`
+3. `tectonic` on `PATH`
 
 PowerShell example:
 
 ```powershell
-$env:ACADEMIC_SLIDES_TECTONIC_PATH = "C:\path\to\tectonic.exe"
+$env:ACADEMIC_SLIDES_TECTONIC_PATH = "<path-to-tectonic-executable>"
 uv run pytest tests/test_open_access_book_e2e.py -q
 ```
 

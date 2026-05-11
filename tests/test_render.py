@@ -309,6 +309,31 @@ def test_find_tectonic_executable_rejects_directory_env_path(
     assert find_tectonic_executable() is None
 
 
+def test_find_tectonic_executable_does_not_probe_user_tool_cache_by_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    bundled = (
+        tmp_path
+        / ".tool-cache"
+        / "plugins"
+        / "cache"
+        / "bundled-tools"
+        / "latex-tectonic"
+        / "0.1.1"
+        / "bin"
+        / "tectonic.exe"
+    )
+    bundled.parent.mkdir(parents=True)
+    bundled.write_text("fake tectonic", encoding="utf-8")
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("ACADEMIC_SLIDES_TECTONIC_PATH", raising=False)
+    monkeypatch.delenv("TECTONIC_PATH", raising=False)
+    monkeypatch.setattr("academic_slides_harness.render.tectonic.shutil.which", lambda _name: None)
+
+    assert find_tectonic_executable() is None
+
+
 def test_compile_tex_with_tectonic_times_out_cleanly(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

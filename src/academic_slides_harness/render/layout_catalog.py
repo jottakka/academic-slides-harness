@@ -32,7 +32,7 @@ LAYOUT_PATTERNS: dict[str, RichLayoutPattern] = {
             "layout": "hero_visual",
             "learning_goal": "Connect segmentation masks to downstream measurement.",
             "blocks": [
-                {"type": "visual", "artifact_path": "C:/abs/path/source_pdf-p21-144dpi.png"},
+                {"type": "visual", "artifact_path": "<absolute-path-to-source-preview-png>"},
                 {
                     "type": "claim",
                     "text": "The segmentation mask defines where the measurement is valid.",
@@ -52,7 +52,7 @@ LAYOUT_PATTERNS: dict[str, RichLayoutPattern] = {
             "layout": "figure_explanation",
             "learning_goal": "Explain why the boundary is the region of interest.",
             "blocks": [
-                {"type": "visual", "artifact_path": "C:/abs/path/source_pdf-p21-crop-144dpi.png"},
+                {"type": "visual", "artifact_path": "<absolute-path-to-source-crop-png>"},
                 {"type": "claim", "text": "The relevant signal is localized at the rim."},
                 {
                     "type": "explanation",
@@ -407,11 +407,9 @@ def _compact_json(value: dict[str, Any]) -> str:
 
 
 def _font(size: int) -> ImageFont.ImageFont:
-    candidates = [
-        Path("C:/Windows/Fonts/segoeui.ttf"),
-        Path("C:/Windows/Fonts/arial.ttf"),
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return ImageFont.truetype(str(candidate), size=size)
+    for candidate in ["Segoe UI", "Arial", "DejaVuSans.ttf"]:
+        try:
+            return ImageFont.truetype(candidate, size=size)
+        except OSError:
+            continue
     return ImageFont.load_default()

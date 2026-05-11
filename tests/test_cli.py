@@ -35,6 +35,26 @@ def test_doctor_arcade_defaults_to_local_stdio_without_http_endpoint_checks(
     assert check_names == {"arcade_cli", "local_stdio_entrypoint"}
 
 
+def test_doctor_arcade_does_not_probe_home_tool_bin_by_default(
+    capsys,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    arcade = tmp_path / "tool-bin" / "arcade.exe"
+    arcade.parent.mkdir(parents=True)
+    arcade.write_text("fake arcade", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr("academic_slides_harness.cli.shutil.which", lambda _command: None)
+
+    exit_code = main(["doctor", "arcade", "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    arcade_check = {check["name"]: check for check in output["checks"]}["arcade_cli"]
+    assert exit_code == 1
+    assert arcade_check["ok"] is False
+    assert "expected_path" not in arcade_check["details"]
+
+
 def test_diagnose_arcade_finds_stdio_entrypoint_outside_repo_cwd(
     monkeypatch,
     tmp_path: Path,

@@ -56,7 +56,7 @@ Minimum schema:
   "layout": "figure_explanation",
   "learning_goal": "Explain why rim segmentation is the measurement anchor.",
   "blocks": [
-    {"type": "visual", "artifact_path": "C:/abs/path/source_pdf-p21-144dpi.png"},
+    {"type": "visual", "artifact_path": "<absolute-path-to-source-preview-png>"},
     {"type": "claim", "text": "Intensity dynamics are measured at compartment boundaries."},
     {"type": "explanation", "text": "The highlighted rim converts a cell image into a reproducible measurement region."},
     {"type": "source_citation", "source_page": 21}

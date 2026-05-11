@@ -13,20 +13,7 @@ def find_tectonic_executable() -> Path | None:
             path = Path(configured)
             return path.resolve() if path.is_file() else None
 
-    candidates = [
-        str(
-            Path.home()
-            / ".codex"
-            / "plugins"
-            / "cache"
-            / "openai-bundled"
-            / "latex-tectonic"
-            / "0.1.1"
-            / "bin"
-            / "tectonic.exe"
-        ),
-        "tectonic",
-    ]
+    candidates = ["tectonic"]
     for candidate in candidates:
         path = Path(candidate)
         if path.is_file():

@@ -174,7 +174,7 @@ Renderize Beamer rico:
         "blocks": [
           {
             "type": "visual",
-            "artifact_path": "C:/absolute/path/to/source_pdf-p4-crop-144dpi-z2.5.png"
+            "artifact_path": "<absolute-path-to-source-crop-png>"
           },
           {
             "type": "claim",
