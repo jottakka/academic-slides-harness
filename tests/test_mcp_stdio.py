@@ -69,6 +69,9 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
         theme_resource_result = await session.read_resource(
             "academic-slides://themes/default_visual_academic"
         )
+        unb_theme_resource_result = await session.read_resource(
+            "academic-slides://themes/unb_visual_academic"
+        )
 
     tool_names = {tool.name for tool in response.tools}
     assert tool_names == {
@@ -98,10 +101,14 @@ async def test_mcp_server_exposes_tools_over_stdio(tmp_path: Path) -> None:
     assert "openai" in str(model_providers_result.content)
     assert "figure_explanation" in str(resource_result.contents)
     assert "default_visual_academic" in str(theme_resource_result.contents)
+    assert "unb_visual_academic" in str(unb_theme_resource_result.contents)
     assert "academic-slides://schemas/rich_slide_plan" in {
         str(resource.uri) for resource in resources_response.resources
     }
     assert "academic-slides://themes/default_visual_academic" in {
+        str(resource.uri) for resource in resources_response.resources
+    }
+    assert "academic-slides://themes/unb_visual_academic" in {
         str(resource.uri) for resource in resources_response.resources
     }
     assert (tmp_path / "rich-rendered" / "deck.tex").exists()

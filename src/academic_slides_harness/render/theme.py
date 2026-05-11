@@ -74,6 +74,10 @@ def load_theme_preset(name_or_path: str | Path) -> dict[str, Any]:
     return data
 
 
+def list_available_theme_preset_names() -> list[str]:
+    return sorted(path.stem for path in _theme_preset_dir().glob("*.json") if path.is_file())
+
+
 def _resolve_preset_path(name_or_path: str | Path) -> Path:
     candidate = Path(name_or_path)
     if candidate.is_file():

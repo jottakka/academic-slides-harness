@@ -160,6 +160,12 @@ Leia estes resources MCP no seu cliente:
 - `academic-slides://prompts/visual_quality_rubric`
 - `academic-slides://prompts/didactic_quality_rubric`
 - `academic-slides://themes/default_visual_academic`
+- `academic-slides://themes/unb_visual_academic`
+
+Use `equation_explanation` com `latex_equation` para formulas que podem ser
+transcritas fielmente. Use `table_explanation` com `latex_table` para tabelas
+compactas da fonte. Mantenha `RenderZoomCrop` para diagramas, graficos,
+derivacoes manuscritas e evidencia visual especifica da fonte.
 
 Opcionalmente renderize placeholders de layout:
 

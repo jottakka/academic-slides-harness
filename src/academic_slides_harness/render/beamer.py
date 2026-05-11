@@ -19,17 +19,36 @@ class BeamerDeck:
 
 @dataclass(frozen=True)
 class RichSlideBlock:
-    type: Literal["visual", "claim", "explanation", "source_citation", "steps"]
+    type: Literal[
+        "visual",
+        "claim",
+        "explanation",
+        "source_citation",
+        "steps",
+        "latex_equation",
+        "latex_table",
+    ]
     text: str | None = None
     artifact_path: str | None = None
     source_page: int | None = None
     items: list[str] | None = None
+    latex: str | None = None
+    caption: str | None = None
+    headers: list[str] | None = None
+    rows: list[list[str]] | None = None
 
 
 @dataclass(frozen=True)
 class RichBeamerSlide:
     title: str
-    layout: Literal["hero_visual", "figure_explanation", "workflow_steps", "takeaway"]
+    layout: Literal[
+        "hero_visual",
+        "figure_explanation",
+        "workflow_steps",
+        "takeaway",
+        "equation_explanation",
+        "table_explanation",
+    ]
     blocks: list[RichSlideBlock]
     learning_goal: str | None = None
 
@@ -62,7 +81,11 @@ def render_rich_beamer_tex(deck: RichBeamerDeck) -> str:
         [
             "\\documentclass[aspectratio=169]{beamer}",
             "\\usetheme{Boadilla}",
+            "\\usepackage[utf8]{inputenc}",
+            "\\usepackage[T1]{fontenc}",
             "\\usepackage{graphicx}",
+            "\\usepackage{amsmath}",
+            "\\usepackage{array}",
             "\\usepackage{xcolor}",
             "\\usepackage{ragged2e}",
             "\\setbeamertemplate{navigation symbols}{}",
@@ -157,6 +180,8 @@ def _render_rich_slide(slide: RichBeamerSlide) -> str:
 
 def _render_rich_slide_body(slide: RichBeamerSlide) -> str:
     visual = _first_block(slide, "visual")
+    equation = _first_block(slide, "latex_equation")
+    table = _first_block(slide, "latex_table")
     non_visual_blocks = [block for block in slide.blocks if block.type != "visual"]
     if slide.layout == "figure_explanation" and visual is not None:
         return "\n".join(
@@ -171,6 +196,18 @@ def _render_rich_slide_body(slide: RichBeamerSlide) -> str:
                 "\\end{column}",
                 "\\end{columns}",
             ]
+        )
+    if slide.layout == "equation_explanation" and equation is not None:
+        return _render_native_focus_layout(
+            slide=slide,
+            focus=equation,
+            focus_type="latex_equation",
+        )
+    if slide.layout == "table_explanation" and table is not None:
+        return _render_native_focus_layout(
+            slide=slide,
+            focus=table,
+            focus_type="latex_table",
         )
     if slide.layout == "hero_visual" and visual is not None:
         return "\n".join(
@@ -191,6 +228,28 @@ def _render_rich_slide_body(slide: RichBeamerSlide) -> str:
     )
 
 
+def _render_native_focus_layout(
+    *,
+    slide: RichBeamerSlide,
+    focus: RichSlideBlock,
+    focus_type: str,
+) -> str:
+    rail_blocks = [block for block in slide.blocks if block.type != focus_type]
+    return "\n".join(
+        [
+            _render_learning_goal(slide),
+            "\\begin{columns}[T,onlytextwidth]",
+            "\\begin{column}{0.62\\textwidth}",
+            _render_rich_block(focus),
+            "\\end{column}",
+            "\\begin{column}{0.34\\textwidth}",
+            *[_render_rich_block(block, rail=True) for block in rail_blocks],
+            "\\end{column}",
+            "\\end{columns}",
+        ]
+    )
+
+
 def _render_learning_goal(slide: RichBeamerSlide) -> str:
     if not slide.learning_goal:
         return ""
@@ -208,6 +267,10 @@ def _render_rich_block(block: RichSlideBlock, *, rail: bool = False) -> str:
         return _render_source_citation(block)
     if block.type == "steps":
         return _render_steps(block.items or [])
+    if block.type == "latex_equation":
+        return _render_latex_equation(block)
+    if block.type == "latex_table":
+        return _render_latex_table(block)
     return ""
 
 
@@ -269,6 +332,81 @@ def _render_steps(items: list[str]) -> str:
             "\\end{enumerate}",
         ]
     )
+
+
+def _render_latex_equation(block: RichSlideBlock) -> str:
+    if not block.latex:
+        return ""
+    caption = (
+        f"\\vspace{{0.06cm}}{{\\scriptsize\\color{{ashmuted}} {_escape_latex(block.caption)}}}"
+        if block.caption
+        else ""
+    )
+    return "\n".join(
+        [
+            "\\begin{beamercolorbox}[rounded=true,wd=\\linewidth,sep=0.22cm]{ashLearningBox}",
+            "{\\scriptsize\\bfseries\\color{ashblue} Native equation}\\par",
+            "\\vspace{0.04cm}",
+            "{\\large",
+            "\\[",
+            block.latex.strip(),
+            "\\]",
+            "}",
+            caption,
+            "\\end{beamercolorbox}",
+        ]
+    )
+
+
+def _render_latex_table(block: RichSlideBlock) -> str:
+    headers = block.headers or []
+    rows = block.rows or []
+    if not headers:
+        return ""
+    column_spec = " ".join(["l"] * len(headers))
+    rendered_headers = " & ".join(_render_table_cell(header) for header in headers)
+    rendered_rows = [
+        " & ".join(_render_table_cell(cell) for cell in row) + r" \\"
+        for row in rows
+        if len(row) == len(headers)
+    ]
+    caption = (
+        f"\\vspace{{0.08cm}}{{\\scriptsize\\color{{ashmuted}} {_escape_latex(block.caption)}}}"
+        if block.caption
+        else ""
+    )
+    return "\n".join(
+        [
+            "\\begin{beamercolorbox}[rounded=true,wd=\\linewidth,sep=0.22cm]{ashLearningBox}",
+            "{\\scriptsize\\bfseries\\color{ashblue} Native table}\\par",
+            "\\vspace{0.08cm}",
+            "{\\small",
+            "\\renewcommand{\\arraystretch}{1.18}",
+            "\\begin{center}",
+            "\\begin{tabular}{@{}" + column_spec + "@{}}",
+            rendered_headers + r" \\ \hline",
+            *rendered_rows,
+            "\\end{tabular}",
+            "\\end{center}",
+            "}",
+            caption,
+            "\\end{beamercolorbox}",
+        ]
+    )
+
+
+def _render_table_cell(value: str) -> str:
+    stripped = value.strip()
+    if _looks_like_math_cell(stripped):
+        if stripped.startswith("\\(") or stripped.startswith("$"):
+            return stripped
+        return f"\\({stripped}\\)"
+    return _escape_latex(value)
+
+
+def _looks_like_math_cell(value: str) -> bool:
+    math_markers = ("^", "_", "\\", "{", "}")
+    return any(marker in value for marker in math_markers)
 
 
 def _first_block(slide: RichBeamerSlide, block_type: str) -> RichSlideBlock | None:

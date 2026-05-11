@@ -228,6 +228,54 @@ def test_render_rich_beamer_tex_uses_clean_main_claim_surface() -> None:
     assert "\\begin{block}{Why it matters}" not in tex
 
 
+def test_render_rich_beamer_tex_renders_native_equation_and_table_blocks() -> None:
+    tex = render_rich_beamer_tex(
+        RichBeamerDeck(
+            title="Navegacao Inercial",
+            slides=[
+                RichBeamerSlide(
+                    title="A aceleracao especifica e vetorial",
+                    layout="equation_explanation",
+                    learning_goal="Interpretar a relacao entre corpo, navegacao e gravidade.",
+                    blocks=[
+                        RichSlideBlock(
+                            type="latex_equation",
+                            latex=r"f^b = R_n^b (a^n - g^n)",
+                            caption="Equacao nativa para preservar semantica matematica.",
+                        ),
+                        RichSlideBlock(
+                            type="claim",
+                            text="Nao e necessario transformar formula reproduzivel em imagem.",
+                        ),
+                        RichSlideBlock(type="source_citation", source_page=3),
+                    ],
+                ),
+                RichBeamerSlide(
+                    title="Termos principais",
+                    layout="table_explanation",
+                    blocks=[
+                        RichSlideBlock(
+                            type="latex_table",
+                            caption="Tabela nativa editavel.",
+                            headers=["Termo", "Papel"],
+                            rows=[["f^b", "medida"], ["g^n", "gravidade"]],
+                        ),
+                        RichSlideBlock(type="claim", text="Tabelas pequenas devem usar tabular."),
+                        RichSlideBlock(type="source_citation", source_page=4),
+                    ],
+                ),
+            ],
+        )
+    )
+
+    assert r"f^b = R_n^b (a^n - g^n)" in tex
+    assert "\\begin{tabular}" in tex
+    assert "Termo" in tex
+    assert "\\includegraphics" not in tex
+    assert "\\usepackage{amsmath}" in tex
+    assert "\\usepackage[utf8]{inputenc}" in tex
+
+
 @pytest.mark.latex
 def test_compile_tex_with_special_characters_when_tectonic_available(tmp_path: Path) -> None:
     tectonic = find_tectonic_executable()

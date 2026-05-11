@@ -1,0 +1,40 @@
+{
+  "name": "unb_visual_academic",
+  "version": 1,
+  "description": "Portable Universidade de Brasilia (UnB) academic theme preset using UnB blue and green.",
+  "colors": {
+    "primary": "#003366",
+    "primary_dark": "#00264D",
+    "accent": "#006633",
+    "background": "#FFFFFF",
+    "surface": "#EAF2F8",
+    "text": "#111827",
+    "muted_text": "#52606D"
+  },
+  "fonts": {
+    "heading": "TeX Gyre Heros",
+    "body": "TeX Gyre Pagella",
+    "mono": "Inconsolata"
+  },
+  "logo": {
+    "path": null,
+    "placement": "top_right",
+    "max_width": 0.18,
+    "max_height": 0.09
+  },
+  "beamer": {
+    "theme": "Boadilla",
+    "color_theme": "default",
+    "aspect_ratio": "169",
+    "navigation_symbols": false
+  },
+  "layout_defaults": {
+    "institution": "Universidade de Brasilia",
+    "visual_density": "standard",
+    "preview_profile": "review",
+    "max_bullets": 4,
+    "prefer_visual_first": true,
+    "prefer_native_latex_equations": true,
+    "prefer_native_latex_tables": true
+  }
+}

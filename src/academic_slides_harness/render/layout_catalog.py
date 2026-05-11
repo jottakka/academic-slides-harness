@@ -91,6 +91,74 @@ LAYOUT_PATTERNS: dict[str, RichLayoutPattern] = {
             ],
         },
     ),
+    "equation_explanation": RichLayoutPattern(
+        name="equation_explanation",
+        purpose="Render a reconstructable mathematical relation as native LaTeX.",
+        when_to_use=(
+            "Use when a formula, vector relation, or short derivation can be transcribed "
+            "faithfully instead of shown as a source screenshot."
+        ),
+        required_blocks=("latex_equation", "claim", "source_citation"),
+        suggested_text_limits={
+            "title": 72,
+            "learning_goal": 115,
+            "latex": 520,
+            "caption": 120,
+            "claim": 120,
+            "explanation": 180,
+        },
+        example={
+            "title": "Specific force removes gravity from acceleration",
+            "layout": "equation_explanation",
+            "learning_goal": "Read the body-frame force relation as a native equation.",
+            "blocks": [
+                {
+                    "type": "latex_equation",
+                    "latex": "f^b = R_n^b (a^n - g^n)",
+                    "caption": "Native LaTeX keeps the equation editable and sharp.",
+                },
+                {"type": "claim", "text": "Use crops only when the equation cannot be rebuilt."},
+                {"type": "source_citation", "source_page": 12},
+            ],
+        },
+    ),
+    "table_explanation": RichLayoutPattern(
+        name="table_explanation",
+        purpose="Render compact source comparisons as native LaTeX tables.",
+        when_to_use=(
+            "Use when the source has a small table or parameter comparison that can be "
+            "represented with structured rows and columns."
+        ),
+        required_blocks=("latex_table", "claim", "source_citation"),
+        suggested_text_limits={
+            "title": 72,
+            "learning_goal": 110,
+            "caption": 120,
+            "claim": 120,
+            "explanation": 180,
+            "table_cell": 42,
+            "max_rows": 8,
+            "max_columns": 5,
+        },
+        example={
+            "title": "Sensor terms should stay comparable",
+            "layout": "table_explanation",
+            "learning_goal": "Compare symbols and units without screenshot text.",
+            "blocks": [
+                {
+                    "type": "latex_table",
+                    "caption": "Structured table rendered as Beamer tabular.",
+                    "headers": ["Term", "Meaning", "Unit"],
+                    "rows": [
+                        ["a", "acceleration", "m/s^2"],
+                        ["g", "gravity", "m/s^2"],
+                    ],
+                },
+                {"type": "claim", "text": "A small reconstructed table is clearer than a crop."},
+                {"type": "source_citation", "source_page": 14},
+            ],
+        },
+    ),
     "takeaway": RichLayoutPattern(
         name="takeaway",
         purpose="Compress a section into one memorable conclusion.",
@@ -202,11 +270,23 @@ def rich_slide_schema_markdown() -> str:
             "",
             "A rich deck call to `RenderRichBeamer` uses a title and a list of slide objects.",
             "",
-            "Supported layouts: hero_visual, figure_explanation, workflow_steps, takeaway.",
-            "Supported block types: visual, claim, explanation, steps, source_citation.",
+            (
+                "Supported layouts: hero_visual, figure_explanation, workflow_steps, "
+                "equation_explanation, table_explanation, takeaway."
+            ),
+            (
+                "Supported block types: visual, claim, explanation, steps, latex_equation, "
+                "latex_table, source_citation."
+            ),
             "",
             "Rules:",
             "- `hero_visual` and `figure_explanation` require one `visual` block.",
+            "- `equation_explanation` requires one `latex_equation` block.",
+            "- `table_explanation` requires one `latex_table` block.",
+            "- Prefer `latex_equation` for formulas that can be reconstructed faithfully; "
+            "do not use a text-heavy crop just to show a formula.",
+            "- Prefer `latex_table` for compact tables that can be represented as headers "
+            "and rows; use visual crops only for layout-sensitive or image-like evidence.",
             "- `visual.artifact_path` must point to an existing readable image artifact; "
             "PNG and JPEG pass through when safe, and other readable formats are "
             "normalized to PNG.",
@@ -217,6 +297,7 @@ def rich_slide_schema_markdown() -> str:
             "- `allow_visual_quality_warnings` is an exception path; it is preserved in "
             "asset metadata as `quality_override` for review.",
             "- Claims should cite either a source page or a visual artifact used on the slide.",
+            "- Native equations and tables must cite the source page used for transcription.",
             "- Keep text short enough for the selected layout limits.",
             "- Text over the layout limits returns typed `text_overflow_risk` before "
             "assets are copied.",
@@ -330,6 +411,64 @@ def _draw_placeholder(
                 label_font,
                 small_font,
             )
+    elif pattern.name == "equation_explanation":
+        _box(
+            draw,
+            (margin, body_top + 42, int(width * 0.62), body_top + 270),
+            "NATIVE LATEX EQUATION",
+            pale,
+            ink,
+            label_font,
+            small_font,
+        )
+        x0 = int(width * 0.66)
+        _box(
+            draw,
+            (x0, body_top + 20, width - margin, body_top + 150),
+            "KEY CLAIM",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+        _box(
+            draw,
+            (x0, body_top + 180, width - margin, body_bottom),
+            "SOURCE / INTERPRETATION",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+    elif pattern.name == "table_explanation":
+        _box(
+            draw,
+            (margin, body_top + 20, int(width * 0.62), body_bottom),
+            "NATIVE LATEX TABLE",
+            pale,
+            ink,
+            label_font,
+            small_font,
+        )
+        x0 = int(width * 0.66)
+        _box(
+            draw,
+            (x0, body_top + 20, width - margin, body_top + 150),
+            "KEY CLAIM",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
+        _box(
+            draw,
+            (x0, body_top + 180, width - margin, body_bottom),
+            "SOURCE / NOTES",
+            "white",
+            ink,
+            label_font,
+            small_font,
+        )
     else:
         _box(
             draw,

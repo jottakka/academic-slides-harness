@@ -30,6 +30,7 @@ from academic_slides_harness.render.layout_catalog import (
 from academic_slides_harness.render.tectonic import compile_tex_with_tectonic
 from academic_slides_harness.render.theme import (
     ThemePresetError,
+    list_available_theme_preset_names,
     load_theme_preset,
     theme_preset_path,
 )
@@ -63,7 +64,7 @@ MCP_TOOL_NAMES = frozenset(
     }
 )
 
-MCP_RESOURCE_URIS = frozenset(
+_STATIC_MCP_RESOURCE_URIS = frozenset(
     {
         "academic-slides://layouts/rich_slide_patterns",
         "academic-slides://prompts/draft_academic_deck",
@@ -73,11 +74,18 @@ MCP_RESOURCE_URIS = frozenset(
         "academic-slides://prompts/review_visual_artifacts",
         "academic-slides://prompts/visual_quality_rubric",
         "academic-slides://schemas/rich_slide_plan",
-        "academic-slides://themes/default_visual_academic",
     }
+)
+MCP_RESOURCE_URIS = _STATIC_MCP_RESOURCE_URIS | frozenset(
+    f"academic-slides://themes/{name}" for name in list_available_theme_preset_names()
 )
 
 DEFAULT_THEME_PRESET_NAME = "default_visual_academic"
+_FORBIDDEN_LATEX_COMMAND_RE = re.compile(
+    r"\\(?:input|include|includegraphics|write|openout|read|catcode|def|gdef|edef|"
+    r"newcommand|renewcommand|usepackage|documentclass)\b|\\(?:begin|end)\s*\{\s*document\s*\}",
+    re.IGNORECASE,
+)
 
 
 def create_run(
@@ -360,14 +368,14 @@ def render_layout_placeholders(
 def list_theme_presets() -> ToolResult:
     """List deterministic deck theme presets available to MCP agents."""
     try:
-        preset = _theme_preset_payload(DEFAULT_THEME_PRESET_NAME)
+        presets = [_theme_preset_payload(name) for name in list_available_theme_preset_names()]
     except ThemePresetError as exc:
         return ToolResult.error(kind=exc.kind, message=str(exc), details=exc.details)
     except OSError as exc:
         return _exception_result(kind="theme_preset_failed", exc=exc)
     return ToolResult.success(
         message="Listed theme presets",
-        structured_content={"presets": [preset]},
+        structured_content={"presets": presets},
     )
 
 
@@ -624,12 +632,13 @@ def build_app() -> MCPApp:
             name=name,
             description=description,
         )
-    app.add_text_resource(
-        "academic-slides://themes/default_visual_academic",
-        text=_theme_preset_resource_text(DEFAULT_THEME_PRESET_NAME),
-        name="default_visual_academic_theme",
-        description="Default reusable visual academic deck theme preset.",
-    )
+    for preset_name in list_available_theme_preset_names():
+        app.add_text_resource(
+            f"academic-slides://themes/{preset_name}",
+            text=_theme_preset_resource_text(preset_name),
+            name=f"{preset_name}_theme",
+            description=f"{preset_name} reusable visual academic deck theme preset.",
+        )
     return app
 
 
@@ -714,12 +723,31 @@ def _parse_rich_slides(
             )
             for block_index, block in enumerate(raw_blocks, start=1)
         ]
-        if layout in {"hero_visual", "figure_explanation"} and not any(
-            block.type == "visual" for block in parsed_blocks
+        if layout in {"hero_visual", "figure_explanation"} and not _has_block_type(
+            parsed_blocks,
+            "visual",
         ):
             raise RichSlideParseError(
                 kind="invalid_slide",
                 message=f"Slide {index} layout {layout} requires a visual block.",
+                details={"slide_index": index, "layout": layout},
+            )
+        if layout == "equation_explanation" and not _has_block_type(
+            parsed_blocks,
+            "latex_equation",
+        ):
+            raise RichSlideParseError(
+                kind="invalid_slide",
+                message=f"Slide {index} layout {layout} requires a latex_equation block.",
+                details={"slide_index": index, "layout": layout},
+            )
+        if layout == "table_explanation" and not _has_block_type(
+            parsed_blocks,
+            "latex_table",
+        ):
+            raise RichSlideParseError(
+                kind="invalid_slide",
+                message=f"Slide {index} layout {layout} requires a latex_table block.",
                 details={"slide_index": index, "layout": layout},
             )
         parsed_slides.append(
@@ -807,6 +835,30 @@ def _validate_rich_slide_text_limits(
                         block_type="steps",
                         item_index=item_index,
                     )
+        if block_type == "latex_equation" and isinstance(block.get("caption"), str):
+            max_caption_chars = limits.get("caption")
+            if max_caption_chars is not None:
+                _enforce_text_limit(
+                    slide_index=slide_index,
+                    layout=layout,
+                    field="caption",
+                    value=block["caption"],
+                    max_chars=max_caption_chars,
+                    block_index=block_index,
+                    block_type="latex_equation",
+                )
+        if block_type == "latex_table" and isinstance(block.get("caption"), str):
+            max_caption_chars = limits.get("caption")
+            if max_caption_chars is not None:
+                _enforce_text_limit(
+                    slide_index=slide_index,
+                    layout=layout,
+                    field="caption",
+                    value=block["caption"],
+                    max_chars=max_caption_chars,
+                    block_index=block_index,
+                    block_type="latex_table",
+                )
 
 
 def _enforce_text_limit(
@@ -930,11 +982,249 @@ def _parse_rich_block(
                 details={"slide_index": slide_index, "block_index": block_index},
             )
         return RichSlideBlock(type="steps", items=items)
+    if block_type == "latex_equation":
+        latex = _required_str(
+            block,
+            field="latex",
+            kind="invalid_latex_equation",
+            slide_index=slide_index,
+            block_index=block_index,
+        )
+        _validate_latex_equation(
+            latex=latex,
+            slide_index=slide_index,
+            block_index=block_index,
+            layout=layout,
+        )
+        caption = block.get("caption")
+        if caption is not None and not isinstance(caption, str):
+            raise RichSlideParseError(
+                kind="invalid_latex_equation",
+                message="latex_equation caption must be a string when provided.",
+                details={"slide_index": slide_index, "block_index": block_index},
+            )
+        return RichSlideBlock(
+            type="latex_equation",
+            latex=latex,
+            caption=caption.strip() if isinstance(caption, str) and caption.strip() else None,
+        )
+    if block_type == "latex_table":
+        headers = _required_str_list(
+            block.get("headers"),
+            field="headers",
+            kind="invalid_latex_table",
+            slide_index=slide_index,
+            block_index=block_index,
+        )
+        _validate_latex_table_cells(
+            cells=headers,
+            field="headers",
+            slide_index=slide_index,
+            block_index=block_index,
+        )
+        rows = _required_table_rows(
+            block.get("rows"),
+            headers=headers,
+            slide_index=slide_index,
+            block_index=block_index,
+            layout=layout,
+        )
+        caption = block.get("caption")
+        if caption is not None and not isinstance(caption, str):
+            raise RichSlideParseError(
+                kind="invalid_latex_table",
+                message="latex_table caption must be a string when provided.",
+                details={"slide_index": slide_index, "block_index": block_index},
+            )
+        return RichSlideBlock(
+            type="latex_table",
+            headers=headers,
+            rows=rows,
+            caption=caption.strip() if isinstance(caption, str) and caption.strip() else None,
+        )
     raise RichSlideParseError(
         kind="invalid_block",
         message=f"Unsupported rich slide block type: {block_type}",
         details={"slide_index": slide_index, "block_index": block_index, "type": block_type},
     )
+
+
+def _has_block_type(blocks: list[RichSlideBlock], block_type: str) -> bool:
+    return any(block.type == block_type for block in blocks)
+
+
+def _validate_latex_equation(
+    *,
+    latex: str,
+    slide_index: int,
+    block_index: int,
+    layout: str,
+) -> None:
+    limits = LAYOUT_PATTERNS[layout].suggested_text_limits
+    max_chars = limits.get("latex", 520)
+    _enforce_text_limit(
+        slide_index=slide_index,
+        layout=layout,
+        field="latex",
+        value=latex,
+        max_chars=max_chars,
+        block_index=block_index,
+        block_type="latex_equation",
+    )
+    if _FORBIDDEN_LATEX_COMMAND_RE.search(latex):
+        raise RichSlideParseError(
+            kind="invalid_latex_equation",
+            message="latex_equation contains a forbidden LaTeX command.",
+            details={
+                "slide_index": slide_index,
+                "block_index": block_index,
+                "field": "latex",
+                "remediation": (
+                    "Use only math expressions, not file, package, macro, or document commands."
+                ),
+            },
+        )
+
+
+def _required_str_list(
+    value: Any,
+    *,
+    field: str,
+    kind: str,
+    slide_index: int,
+    block_index: int,
+) -> list[str]:
+    if not isinstance(value, list) or not value or not all(isinstance(item, str) for item in value):
+        raise RichSlideParseError(
+            kind=kind,
+            message=f"{field} must be a non-empty list of strings.",
+            details={"slide_index": slide_index, "block_index": block_index, "field": field},
+        )
+    items = [item.strip() for item in value]
+    if any(not item for item in items):
+        raise RichSlideParseError(
+            kind=kind,
+            message=f"{field} must not contain blank strings.",
+            details={"slide_index": slide_index, "block_index": block_index, "field": field},
+        )
+    return items
+
+
+def _validate_latex_table_cells(
+    *,
+    cells: list[str],
+    field: str,
+    slide_index: int,
+    block_index: int,
+) -> None:
+    for item_index, cell in enumerate(cells, start=1):
+        if _FORBIDDEN_LATEX_COMMAND_RE.search(cell):
+            raise RichSlideParseError(
+                kind="invalid_latex_table",
+                message="latex_table contains a forbidden LaTeX command.",
+                details={
+                    "slide_index": slide_index,
+                    "block_index": block_index,
+                    "field": field,
+                    "item_index": item_index,
+                    "remediation": (
+                        "Use only text or inline math expressions in table cells, "
+                        "not file, package, macro, or document commands."
+                    ),
+                },
+            )
+
+
+def _required_table_rows(
+    value: Any,
+    *,
+    headers: list[str],
+    slide_index: int,
+    block_index: int,
+    layout: str,
+) -> list[list[str]]:
+    limits = LAYOUT_PATTERNS[layout].suggested_text_limits
+    max_columns = limits.get("max_columns", 5)
+    max_rows = limits.get("max_rows", 8)
+    max_cell_chars = limits.get("table_cell", 42)
+    if len(headers) > max_columns:
+        raise RichSlideParseError(
+            kind="invalid_latex_table",
+            message=f"latex_table has {len(headers)} columns; maximum is {max_columns}.",
+            details={
+                "slide_index": slide_index,
+                "block_index": block_index,
+                "field": "headers",
+                "column_count": len(headers),
+                "max_columns": max_columns,
+            },
+        )
+    if not isinstance(value, list) or not value:
+        raise RichSlideParseError(
+            kind="invalid_latex_table",
+            message="latex_table rows must be a non-empty list of row lists.",
+            details={"slide_index": slide_index, "block_index": block_index, "field": "rows"},
+        )
+    if len(value) > max_rows:
+        raise RichSlideParseError(
+            kind="invalid_latex_table",
+            message=f"latex_table has {len(value)} rows; maximum is {max_rows}.",
+            details={
+                "slide_index": slide_index,
+                "block_index": block_index,
+                "field": "rows",
+                "row_count": len(value),
+                "max_rows": max_rows,
+            },
+        )
+    rows: list[list[str]] = []
+    for row_index, row in enumerate(value, start=1):
+        if (
+            not isinstance(row, list)
+            or len(row) != len(headers)
+            or not all(isinstance(cell, str) for cell in row)
+        ):
+            raise RichSlideParseError(
+                kind="invalid_latex_table",
+                message="latex_table row shape must match the headers.",
+                details={
+                    "slide_index": slide_index,
+                    "block_index": block_index,
+                    "field": "rows",
+                    "row_index": row_index,
+                    "expected_columns": len(headers),
+                },
+            )
+        stripped_row = [cell.strip() for cell in row]
+        for column_index, cell in enumerate(stripped_row, start=1):
+            _validate_latex_table_cells(
+                cells=[cell],
+                field="rows",
+                slide_index=slide_index,
+                block_index=block_index,
+            )
+            if len(cell) > max_cell_chars:
+                raise RichSlideParseError(
+                    kind="text_overflow_risk",
+                    message=(
+                        f"Slide {slide_index} table cell has {len(cell)} characters; "
+                        f"maximum for {layout} is {max_cell_chars}."
+                    ),
+                    details={
+                        "slide_index": slide_index,
+                        "layout": layout,
+                        "block_index": block_index,
+                        "block_type": "latex_table",
+                        "field": "table_cell",
+                        "row_index": row_index,
+                        "column_index": column_index,
+                        "char_count": len(cell),
+                        "max_chars": max_cell_chars,
+                        "remediation": "Shorten the cell or split the table across slides.",
+                    },
+                )
+        rows.append(stripped_row)
+    return rows
 
 
 def _copy_visual_asset(
@@ -1310,9 +1600,17 @@ _DRAFT_VISUAL_DECK_PROMPT = "\n".join(
         "Hard rules:",
         "- Read `academic-slides://layouts/rich_slide_patterns` before choosing layouts.",
         "- Read `academic-slides://themes/default_visual_academic` before choosing colors.",
+        "- If the deck is for Universidade de Brasilia or UnB, read "
+        "`academic-slides://themes/unb_visual_academic` and use the UnB colors.",
         "- Call `ListThemePresets` before proposing custom branding.",
         "- Use `RenderLayoutPlaceholders` when you need to see the spatial structure.",
         "- Use `RenderSourcePreview` and `RenderZoomCrop` before selecting visual evidence.",
+        "- Prefer `equation_explanation` with `latex_equation` for formulas that can be "
+        "transcribed faithfully; do not crop a text-heavy equation screenshot.",
+        "- Prefer `table_explanation` with `latex_table` for compact source tables that can be "
+        "represented as headers and rows.",
+        "- Use crops for irreducible visual evidence: diagrams, plots, handwritten derivations, "
+        "source-specific layout evidence, or figures whose geometry matters.",
         "- Call `RenderRichBeamer`; do not fall back to generic bullet-summary decks.",
         "- Every claim must be tied to a source page or visual artifact.",
         "- Keep text inside the layout limits from `academic-slides://schemas/rich_slide_plan`.",
@@ -1322,7 +1620,7 @@ _DRAFT_VISUAL_DECK_PROMPT = "\n".join(
         "",
         "Required final evidence:",
         "- deck_tex or deck_pdf path",
-        "- source previews and crops used",
+        "- source previews/crops used, plus any native equations or native tables generated",
         "- slide previews",
         "- layout choices and why each layout was selected",
         "- remaining visual or didactic risks",
@@ -1339,6 +1637,9 @@ _VISUAL_QUALITY_RUBRIC = "\n".join(
         "- Important details are readable at slide-preview size.",
         "- Crops remove irrelevant PDF text, margins, legends, or neighboring figures "
         "when possible.",
+        "- Formula and compact-table slides use native LaTeX when the content can be "
+        "reconstructed faithfully.",
+        "- A crop is justified only when it preserves visual evidence that native LaTeX cannot.",
         "- The slide has one dominant visual hierarchy: title, evidence, claim, citation.",
         "- Image dimensions, hash, path, DPI, and page metadata are present.",
         "- Low contrast, tiny labels, blur, or clutter are reported as risks.",
@@ -1354,6 +1655,8 @@ _DIDACTIC_QUALITY_RUBRIC = "\n".join(
         "- The title or claim states the point to learn, not just a topic label.",
         "- The learning goal is concrete and short.",
         "- The visual supports the claim instead of decorating the slide.",
+        "- Equations are mathematically readable and remain tied to the cited source page.",
+        "- Tables are compact enough to be read during a talk.",
         "- Explanatory text is brief enough to be read during a talk.",
         "- Sequential material uses `workflow_steps`, not paragraph bullets.",
         "- Source pages are cited for evidence-bearing slides.",

@@ -140,6 +140,7 @@ Resources públicos atuais:
 - `academic-slides://prompts/visual_quality_rubric`
 - `academic-slides://prompts/didactic_quality_rubric`
 - `academic-slides://themes/default_visual_academic`
+- `academic-slides://themes/unb_visual_academic`
 
 Esses resources orientam agentes a produzir decks visuais com evidência em vez
 de decks genéricos de bullet summary.

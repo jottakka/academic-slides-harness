@@ -75,8 +75,10 @@ Acceptance criteria:
 Implemented contract:
 
 - MCP tool: `RenderRichBeamer`.
-- Rich layouts: `hero_visual`, `figure_explanation`, `workflow_steps`, `takeaway`.
-- Rich blocks: `visual`, `claim`, `explanation`, `steps`, `source_citation`.
+- Rich layouts: `hero_visual`, `figure_explanation`, `workflow_steps`,
+  `equation_explanation`, `table_explanation`, `takeaway`.
+- Rich blocks: `visual`, `claim`, `explanation`, `steps`, `latex_equation`,
+  `latex_table`, `source_citation`.
 - Visual assets are copied into `output_dir/assets` and referenced from the deck
   output instead of interpolating arbitrary absolute paths into LaTeX.
 - The rich renderer adds a non-empty academic opening frame with focus,
@@ -175,7 +177,8 @@ Recommended shape:
   - `beamer`: theme, colortheme, aspect ratio, navigation policy
   - `layout_defaults`: per-layout spacing and image width preferences
 - Expose presets through MCP resources, for example
-  `academic-slides://themes/default_visual_academic`.
+  `academic-slides://themes/default_visual_academic` and
+  `academic-slides://themes/unb_visual_academic`.
 - Later, allow `RenderRichBeamer` to accept a JSON-friendly `theme_preset`
   string or object after tests define the contract.
 
@@ -189,7 +192,10 @@ Implemented contract:
 
 - Default preset path:
   `src/academic_slides_harness/templates/themes/default_visual_academic.json`.
-- MCP resource: `academic-slides://themes/default_visual_academic`.
+- UnB preset path:
+  `src/academic_slides_harness/templates/themes/unb_visual_academic.json`.
+- MCP resources: `academic-slides://themes/default_visual_academic` and
+  `academic-slides://themes/unb_visual_academic`.
 - MCP tool: `ListThemePresets`.
 - Logo config is an object with `path`, `placement`, `max_width`, and
   `max_height`; the default preset uses `path: null` so no logo file is required.

@@ -193,3 +193,48 @@ Implement a deterministic rich-deck quality validator instead of relying on
 manual inspection notes. It should score/return typed failures for missing
 citations, insufficient visual evidence, hard visual warnings, too many text-only
 slides, and rendered-preview quality warnings.
+
+## 2026-05-11 ESN Run Findings
+
+The ESN Aula 11 deck run exposed a different failure mode from the earlier
+image-processing fixture: source crops were used for equations and dense tables
+because the rich schema only offered visual crops, claims, explanations, steps,
+and citations.
+
+Root causes:
+
+- `RenderRichBeamer` had no native equation or table block, so agents treated
+  formulas as visual evidence.
+- `allow_visual_quality_warnings: true` could bypass the `text_heavy_crop` gate
+  even when the better fix was native LaTeX transcription.
+- Prompt resources over-emphasized `RenderZoomCrop` and did not tell agents to
+  use native LaTeX for reconstructable math.
+- The ESN generation path used `pdfplumber` excerpts plus PyMuPDF previews and
+  crops; it did not use MarkItDown Markdown extraction.
+- PT-BR decks with accents are a QA risk whenever text is generated through a
+  non-UTF-8 shell path. Rich Beamer output should keep UTF-8 explicit in the
+  generated preamble.
+
+Implemented mitigation:
+
+- Added `equation_explanation` with a `latex_equation` block.
+- Added `table_explanation` with a structured `latex_table` block rendered as
+  Beamer `tabular`.
+- Added prompt/schema guidance: use crops for diagrams, plots, handwritten
+  derivations, source-specific layout evidence, or figures whose geometry
+  matters; use native LaTeX for equations and compact tables that can be
+  reconstructed faithfully.
+- Added the `unb_visual_academic` theme preset so agents do not invent UnB
+  branding on each run.
+
+Remaining improvements:
+
+- Implement deterministic deck-level quality validation that flags overuse of
+  `allow_visual_quality_warnings`.
+- Add `ExtractSourceMarkdown` so MarkItDown can provide cleaner whole-document
+  planning text alongside page-cited `ExtractSourcePages`.
+- Add a source-to-native-math helper that proposes candidate LaTeX equations and
+  tables from extracted Markdown/text, but still requires deterministic schema
+  validation and source-page citation.
+- Add a final rendered-preview checker for PT-BR accent corruption before a deck
+  is copied to `Downloads`.

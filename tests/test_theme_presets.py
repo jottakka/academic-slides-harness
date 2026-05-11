@@ -4,7 +4,11 @@ import json
 
 import pytest
 
-from academic_slides_harness.render.theme import ThemePresetError, load_theme_preset
+from academic_slides_harness.render.theme import (
+    ThemePresetError,
+    list_available_theme_preset_names,
+    load_theme_preset,
+)
 
 
 def test_load_default_theme_preset_by_name_returns_json_friendly_data() -> None:
@@ -18,6 +22,26 @@ def test_load_default_theme_preset_by_name_returns_json_friendly_data() -> None:
     assert preset["fonts"]["body"]
     assert preset["beamer"]["aspect_ratio"] == "169"
     json.dumps(preset)
+
+
+def test_load_unb_theme_preset_by_name_returns_official_colors() -> None:
+    preset = load_theme_preset("unb_visual_academic")
+
+    assert preset["name"] == "unb_visual_academic"
+    assert preset["description"]
+    assert preset["colors"]["primary"] == "#003366"
+    assert preset["colors"]["accent"] == "#006633"
+    assert preset["logo"]["path"] is None
+    assert preset["layout_defaults"]["institution"] == "Universidade de Brasilia"
+    json.dumps(preset)
+
+
+def test_list_available_theme_preset_names_includes_unb_and_default() -> None:
+    names = list_available_theme_preset_names()
+
+    assert "default_visual_academic" in names
+    assert "unb_visual_academic" in names
+    assert names == sorted(names)
 
 
 def test_load_theme_preset_rejects_invalid_json(tmp_path) -> None:

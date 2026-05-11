@@ -16,6 +16,9 @@ non-deterministic.
   count and page text.
 - `src/academic_slides_harness/visualize/preview.py` uses PyMuPDF for rendered
   page previews and crops.
+- The current rich-deck rendering path does not call MarkItDown. The ESN Aula
+  11 run used the existing `ExtractSourcePages`/PyMuPDF path, so MarkItDown did
+  not influence equation or table extraction quality there.
 - `src/academic_slides_harness/llm/providers.py` already has a small
   `OllamaProvider` for optional live checks and a deterministic `NoLLMProvider`.
 - `academic-slides-harness doctor secrets` already scans repo docs/config for
@@ -45,6 +48,10 @@ Findings:
   to normalize ligatures such as `fi` and `fl`.
 - MarkItDown is designed for LLM/text-analysis Markdown, not high-fidelity
   visual reconstruction.
+- MarkItDown can improve planning text and table/heading discovery, but it
+  should not be treated as a renderer for academic equations. Reconstructable
+  formulas and compact tables should be emitted through native Beamer
+  `latex_equation` and `latex_table` blocks after validation.
 
 Important MarkItDown features to use:
 
@@ -145,6 +152,16 @@ Do not fully replace `ExtractSourcePages` in the first pass. MarkItDown produces
 cleaner whole-document text for planning, but the existing page extractor still
 provides page-bounded excerpts for citations and page checks. Replacement should
 happen only after side-by-side quality tests on the real fixture.
+
+Native equation/table policy:
+
+- use MarkItDown as a planning extractor, not as the final equation renderer;
+- use `ExtractSourcePages` for page-cited source snippets;
+- use `latex_equation` when an equation can be transcribed faithfully;
+- use `latex_table` when a compact table can be represented as structured
+  headers and rows;
+- use `RenderZoomCrop` only when the source item is genuinely visual or
+  layout-sensitive.
 
 ## Proposed MCP Tools
 

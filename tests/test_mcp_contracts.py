@@ -97,6 +97,7 @@ def test_mcp_resource_registry_contains_rich_visual_deck_guidance() -> None:
         "academic-slides://prompts/visual_quality_rubric",
         "academic-slides://schemas/rich_slide_plan",
         "academic-slides://themes/default_visual_academic",
+        "academic-slides://themes/unb_visual_academic",
     } == MCP_RESOURCE_URIS
 
 
@@ -188,6 +189,25 @@ def test_render_layout_placeholders_creates_visual_pngs_with_metadata(tmp_path: 
         assert artifact["required_blocks"]
 
 
+def test_render_layout_placeholders_supports_native_math_and_table_layouts(
+    tmp_path: Path,
+) -> None:
+    result = render_layout_placeholders(
+        output_dir=str(tmp_path / "layouts"),
+        layouts="equation_explanation,table_explanation",
+    )
+
+    assert result.ok is True
+    assert result.structured_content["layouts"] == [
+        "equation_explanation",
+        "table_explanation",
+    ]
+    assert {artifact["layout"] for artifact in result.structured_content["artifacts"]} == {
+        "equation_explanation",
+        "table_explanation",
+    }
+
+
 def test_render_layout_placeholders_rejects_existing_artifacts_by_default(
     tmp_path: Path,
 ) -> None:
@@ -213,12 +233,16 @@ def test_list_theme_presets_returns_default_visual_academic_preset() -> None:
 
     assert result.ok is True
     presets = result.structured_content["presets"]
-    assert len(presets) >= 1
+    assert len(presets) >= 2
     default = next(preset for preset in presets if preset["name"] == "default_visual_academic")
     assert default["resource_uri"] == "academic-slides://themes/default_visual_academic"
     assert default["sha256"]
     assert default["colors"]["primary"] == "#1F4E79"
     assert default["logo"]["path"] is None
+    unb = next(preset for preset in presets if preset["name"] == "unb_visual_academic")
+    assert unb["resource_uri"] == "academic-slides://themes/unb_visual_academic"
+    assert unb["colors"]["primary"] == "#003366"
+    assert unb["colors"]["accent"] == "#006633"
 
 
 def test_list_model_providers_returns_redacted_structured_content(monkeypatch) -> None:
@@ -281,6 +305,7 @@ def test_build_app_theme_resource_does_not_crash_when_preset_is_invalid(
     resources = {str(resource.uri): handler for resource, handler in app._initial_resources}
 
     assert "academic-slides://themes/default_visual_academic" in resources
+    assert "academic-slides://themes/unb_visual_academic" in resources
 
 
 def test_compile_rendered_beamer_returns_typed_timeout_error(
@@ -575,6 +600,123 @@ def test_render_rich_beamer_returns_typed_error_for_missing_visual(
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "missing_visual_artifact"
+
+
+def test_render_rich_beamer_accepts_native_equation_layout_without_visual(
+    tmp_path: Path,
+) -> None:
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Native Equation Deck",
+        slides=[
+            {
+                "title": "A equacao deve ser texto vetorial nativo",
+                "layout": "equation_explanation",
+                "learning_goal": "Ler a aceleracao especifica sem depender de crop.",
+                "blocks": [
+                    {
+                        "type": "latex_equation",
+                        "latex": r"f^b = R_n^b (a^n - g^n)",
+                        "caption": "Equacao nativa em LaTeX, nao imagem.",
+                    },
+                    {"type": "claim", "text": "A formula permanece editavel no Beamer."},
+                    {"type": "source_citation", "source_page": 3},
+                ],
+            }
+        ],
+    )
+
+    tex = Path(result.structured_content["deck_tex"]).read_text(encoding="utf-8")
+    assert result.ok is True
+    assert result.structured_content["layouts"] == ["equation_explanation"]
+    assert result.structured_content["assets"] == []
+    assert r"f^b = R_n^b (a^n - g^n)" in tex
+    assert "\\includegraphics" not in tex
+
+
+def test_render_rich_beamer_accepts_native_table_layout_without_visual(
+    tmp_path: Path,
+) -> None:
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Native Table Deck",
+        slides=[
+            {
+                "title": "Tabela comparativa nativa",
+                "layout": "table_explanation",
+                "blocks": [
+                    {
+                        "type": "latex_table",
+                        "caption": "Resumo compacto em tabela editavel.",
+                        "headers": ["Grandeza", "Unidade"],
+                        "rows": [["aceleracao", "m/s^2"], ["gravidade", "m/s^2"]],
+                    },
+                    {"type": "claim", "text": "A tabela deve ser gerada como tabular."},
+                    {"type": "source_citation", "source_page": 4},
+                ],
+            }
+        ],
+    )
+
+    tex = Path(result.structured_content["deck_tex"]).read_text(encoding="utf-8")
+    assert result.ok is True
+    assert "\\begin{tabular}" in tex
+    assert "Grandeza" in tex
+    assert "aceleracao" in tex
+    assert "\\includegraphics" not in tex
+
+
+def test_render_rich_beamer_rejects_unsafe_native_latex_equation(
+    tmp_path: Path,
+) -> None:
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Unsafe Equation Deck",
+        slides=[
+            {
+                "title": "Unsafe Equation",
+                "layout": "equation_explanation",
+                "blocks": [
+                    {
+                        "type": "latex_equation",
+                        "latex": r"\input{secret}",
+                    },
+                    {"type": "source_citation", "source_page": 1},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_latex_equation"
+    assert not (tmp_path / "rendered" / "deck.tex").exists()
+
+
+def test_render_rich_beamer_rejects_unsafe_native_latex_table_cell(
+    tmp_path: Path,
+) -> None:
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Unsafe Table Deck",
+        slides=[
+            {
+                "title": "Unsafe Table",
+                "layout": "table_explanation",
+                "blocks": [
+                    {
+                        "type": "latex_table",
+                        "headers": ["Termo", "Papel"],
+                        "rows": [[r"\input{secret}", "bad"]],
+                    },
+                    {"type": "source_citation", "source_page": 1},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_latex_table"
+    assert not (tmp_path / "rendered" / "deck.tex").exists()
 
 
 def test_render_rich_beamer_returns_typed_error_for_corrupt_visual(

@@ -40,9 +40,9 @@ teaching decks because it forces agents into generic bullet summaries.
 The v1 visual deck direction is a rich slide contract:
 
 - named layouts such as `hero_visual`, `figure_explanation`, `workflow_steps`,
-  and `takeaway`;
-- typed blocks such as `visual`, `claim`, `explanation`, `steps`, and
-  `source_citation`;
+  `equation_explanation`, `table_explanation`, and `takeaway`;
+- typed blocks such as `visual`, `claim`, `explanation`, `steps`,
+  `latex_equation`, `latex_table`, and `source_citation`;
 - real visual artifacts copied into the render output and embedded with
   `\includegraphics`;
 - source-page or artifact evidence for claims;
