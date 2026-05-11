@@ -80,6 +80,8 @@ quality analyzer.
 
 Scope: improve the rich Beamer visual design contract.
 
+Status: implemented for the current rich Beamer templates.
+
 Acceptance:
 
 - title slide is not a blank placeholder;
@@ -142,9 +144,26 @@ Chunk 3 evidence:
 - Targeted failing-first test was:
   `uv run pytest tests/test_mcp_contracts.py -q -k "quality or snapshot or text_heavy"`.
 
+Chunk 4 evidence:
+
+- `render_rich_beamer_tex` now emits an academic opening frame with deck focus,
+  structure summary, and cited source pages.
+- Rich frames disable the default Beamer footline to avoid date/counter chrome.
+- Source citations render through a small `\ashsourcecitation` command instead
+  of full-size block content.
+- `figure_explanation` uses a larger visual column, a compact right rail, and a
+  capped image height.
+- Non-visual claim/explanation slides use custom clean surfaces instead of
+  default Beamer block title bars.
+- Real stdio MCP render/compile/preview smoke:
+  `runs/layout-upgrade-stdio-20260511002448/layout-upgrade-stdio-report.json`.
+- Preview artifacts inspected manually:
+  - `runs/layout-upgrade-stdio-20260511002448/previews/deck_pdf-p1-144dpi.png`
+  - `runs/layout-upgrade-stdio-20260511002448/previews/deck_pdf-p2-144dpi.png`
+  - `runs/layout-upgrade-stdio-20260511002448/previews/deck_pdf-p3-144dpi.png`
+
 ## Next Chunk
 
-Implement Chunk 4: upgrade the Beamer layout internals so the deck no longer
-looks like bland placeholder output. Focus first on a non-empty title/opening
-slide, small consistent citations, and figure layouts that reserve clear space
-for visual evidence.
+Implement Chunk 5: rerun the image-processing chapter path through stdio MCP
+using the improved artifact-quality gate and upgraded templates, then reject or
+iterate on the deck from rendered PNG previews rather than compile success alone.

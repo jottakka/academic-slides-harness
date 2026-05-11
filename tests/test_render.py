@@ -93,7 +93,139 @@ def test_render_rich_beamer_tex_supports_visual_explanation_without_itemize(
     assert "\\detokenize{" in tex
     assert "\\begin{itemize}" not in tex
     assert "Learning goal" in tex
-    assert "Source page 21" in tex
+    assert "\\ashsourcecitation{21}" in tex
+
+
+def test_render_rich_beamer_tex_title_slide_has_academic_framing(tmp_path: Path) -> None:
+    visual_path = tmp_path / "evidence.png"
+    visual_path.write_bytes(b"not inspected by tex generation")
+
+    tex = render_rich_beamer_tex(
+        RichBeamerDeck(
+            title="Bioimage Workflow",
+            slides=[
+                RichBeamerSlide(
+                    title="Segment the nuclear rim",
+                    layout="figure_explanation",
+                    learning_goal="Connect a microscopy image to a measurable boundary.",
+                    blocks=[
+                        RichSlideBlock(type="visual", artifact_path=str(visual_path)),
+                        RichSlideBlock(
+                            type="claim",
+                            text="The rim defines where intensity is measured.",
+                        ),
+                        RichSlideBlock(type="source_citation", source_page=21),
+                    ],
+                ),
+                RichBeamerSlide(
+                    title="Report the measurement",
+                    layout="takeaway",
+                    blocks=[
+                        RichSlideBlock(type="claim", text="The measurement needs a citation."),
+                        RichSlideBlock(type="source_citation", source_page=24),
+                    ],
+                ),
+            ],
+        )
+    )
+
+    assert "Evidence-backed academic deck" in tex
+    assert "Connect a microscopy image to a measurable boundary." in tex
+    assert "2 slides" in tex
+    assert "1 visual evidence frame" in tex
+    assert "Source pages: 21, 24" in tex
+    assert "\\begin{frame}[plain]" in tex
+    assert "\\setbeamertemplate{footline}{}" in tex
+    assert "\\Huge\\color{ashblue}" not in tex
+
+
+def test_render_rich_beamer_tex_uses_discreet_citation_footer(tmp_path: Path) -> None:
+    visual_path = tmp_path / "evidence.png"
+    visual_path.write_bytes(b"not inspected by tex generation")
+
+    tex = render_rich_beamer_tex(
+        RichBeamerDeck(
+            title="Bioimage Workflow",
+            slides=[
+                RichBeamerSlide(
+                    title="Evidence frame",
+                    layout="figure_explanation",
+                    blocks=[
+                        RichSlideBlock(type="visual", artifact_path=str(visual_path)),
+                        RichSlideBlock(type="claim", text="Evidence needs a stable reference."),
+                        RichSlideBlock(type="source_citation", source_page=7),
+                    ],
+                )
+            ],
+        )
+    )
+
+    assert "\\ashsourcecitation{7}" in tex
+    assert "\\scriptsize\\color{gray} Source page 7" not in tex
+
+
+def test_render_rich_beamer_tex_caps_visual_height_for_figure_layout(
+    tmp_path: Path,
+) -> None:
+    visual_path = tmp_path / "evidence.png"
+    visual_path.write_bytes(b"not inspected by tex generation")
+
+    tex = render_rich_beamer_tex(
+        RichBeamerDeck(
+            title="Bioimage Workflow",
+            slides=[
+                RichBeamerSlide(
+                    title="Evidence frame",
+                    layout="figure_explanation",
+                    learning_goal="Keep the image dominant without covering the claim.",
+                    blocks=[
+                        RichSlideBlock(type="visual", artifact_path=str(visual_path)),
+                        RichSlideBlock(type="claim", text="The visual gets the largest region."),
+                        RichSlideBlock(
+                            type="explanation",
+                            text="The explanation stays in a compact right rail.",
+                        ),
+                        RichSlideBlock(type="source_citation", source_page=7),
+                    ],
+                )
+            ],
+        )
+    )
+
+    assert "\\begin{column}{0.64\\textwidth}" in tex
+    assert "\\begin{column}{0.32\\textwidth}" in tex
+    assert "\\includegraphics[width=\\linewidth,height=0.62\\textheight,keepaspectratio]" in tex
+    assert "\\ashrailclaim{" in tex
+
+
+def test_render_rich_beamer_tex_uses_clean_main_claim_surface() -> None:
+    tex = render_rich_beamer_tex(
+        RichBeamerDeck(
+            title="Bioimage Workflow",
+            slides=[
+                RichBeamerSlide(
+                    title="Report the measurement boundary",
+                    layout="takeaway",
+                    blocks=[
+                        RichSlideBlock(
+                            type="claim",
+                            text="A result needs an explicit measurement boundary.",
+                        ),
+                        RichSlideBlock(
+                            type="explanation",
+                            text="This prevents readers from mistaking a display choice for data.",
+                        ),
+                        RichSlideBlock(type="source_citation", source_page=24),
+                    ],
+                )
+            ],
+        )
+    )
+
+    assert "\\ashmainclaim{" in tex
+    assert "\\ashmainexplanation{" in tex
+    assert "\\begin{block}{Key claim}" not in tex
+    assert "\\begin{block}{Why it matters}" not in tex
 
 
 @pytest.mark.latex

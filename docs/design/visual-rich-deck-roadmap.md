@@ -75,6 +75,10 @@ Implemented contract:
 - Rich blocks: `visual`, `claim`, `explanation`, `steps`, `source_citation`.
 - Visual assets are copied into `output_dir/assets` and referenced from the deck
   output instead of interpolating arbitrary absolute paths into LaTeX.
+- The rich renderer adds a non-empty academic opening frame with focus,
+  structure summary, and source-page summary.
+- Rich frames use compact custom claim/explanation surfaces, small citation
+  footers, capped image height, and no default Beamer date/counter footline.
 
 Validation:
 
