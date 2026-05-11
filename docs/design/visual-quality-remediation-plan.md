@@ -95,6 +95,8 @@ Rollback: keep old layout names and switch rendering internals back per layout.
 
 Scope: rerun the image-processing chapter through stdio MCP and inspect output.
 
+Status: implemented for the chapter fixture real-run acceptance pass.
+
 Acceptance:
 
 - deck compiles;
@@ -164,6 +166,30 @@ Chunk 4 evidence:
 
 ## Next Chunk
 
-Implement Chunk 5: rerun the image-processing chapter path through stdio MCP
-using the improved artifact-quality gate and upgraded templates, then reject or
-iterate on the deck from rendered PNG previews rather than compile success alone.
+Chunk 5 evidence:
+
+- Source fixture:
+  `tests/fixtures/sources/springer-elements-robotics-ch12-image-processing.pdf`.
+- Real stdio MCP run report:
+  `runs/chunk5-real-chapter-20260511003209/chunk5-final-deck-refined-report.json`.
+- Compiled PDF:
+  `runs/chunk5-real-chapter-20260511003209/compiled-refined/deck.pdf`.
+- Source crop contact sheet:
+  `runs/chunk5-real-chapter-20260511003209/crop-contact-sheet-refined.jpg`.
+- Deck previews inspected manually:
+  - `runs/chunk5-real-chapter-20260511003209/deck-previews-refined/deck_pdf-p1-144dpi.png`
+  - `runs/chunk5-real-chapter-20260511003209/deck-previews-refined/deck_pdf-p2-144dpi.png`
+  - `runs/chunk5-real-chapter-20260511003209/deck-previews-refined/deck_pdf-p3-144dpi.png`
+  - `runs/chunk5-real-chapter-20260511003209/deck-previews-refined/deck_pdf-p4-144dpi.png`
+  - `runs/chunk5-real-chapter-20260511003209/deck-previews-refined/deck_pdf-p5-144dpi.png`
+  - `runs/chunk5-real-chapter-20260511003209/deck-previews-refined/deck_pdf-p6-144dpi.png`
+- All six deck previews reported no deterministic quality warnings.
+- First deck iteration was rejected because the hero slide hid the citation and
+  some crops still carried caption/text residue; the refined pass corrected both.
+
+## Next Chunk
+
+Implement a deterministic rich-deck quality validator instead of relying on
+manual inspection notes. It should score/return typed failures for missing
+citations, insufficient visual evidence, hard visual warnings, too many text-only
+slides, and rendered-preview quality warnings.
