@@ -1087,13 +1087,16 @@ def _visual_metadata_from_sidecar(path: Path) -> dict[str, Any] | None:
         return None
     payload = json.loads(sidecar_path.read_text(encoding="utf-8"))
     resolution = payload.get("resolution", {})
-    return {
+    metadata = {
         "dpi": resolution.get("dpi"),
         "scale": resolution.get("scale"),
         "zoom": payload.get("zoom"),
         "target": payload.get("target"),
         "page": payload.get("page"),
     }
+    if "quality" in payload:
+        metadata["quality"] = payload["quality"]
+    return metadata
 
 
 def _visual_metadata_from_filename(path: Path) -> dict[str, Any]:

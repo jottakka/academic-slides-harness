@@ -9,6 +9,7 @@ import fitz
 
 from academic_slides_harness.core.models import ScreenshotArtifact
 from academic_slides_harness.visualize.options import CropBox, RenderOptions
+from academic_slides_harness.visualize.quality import assess_visual_quality
 
 
 def render_pdf_pages(
@@ -45,6 +46,10 @@ def render_pdf_pages(
                 dpi=resolved.dpi,
                 scale=resolved.scale,
                 zoom=resolved.zoom,
+                quality=assess_visual_quality(
+                    output_path,
+                    context="source_preview" if target == "source_pdf" else "deck_preview",
+                ).to_structured_content(),
             )
             _write_sidecar(artifact)
             artifacts.append(artifact)
@@ -87,6 +92,10 @@ def render_zoom_crop(
             dpi=resolved.dpi,
             scale=resolved.scale,
             zoom=resolved.zoom,
+            quality=assess_visual_quality(
+                output_path,
+                context="source_crop" if target == "source_pdf" else "deck_crop",
+            ).to_structured_content(),
         )
         _write_sidecar(artifact)
         return artifact

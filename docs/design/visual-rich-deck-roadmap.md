@@ -236,6 +236,11 @@ Validation:
 
 Goal: judge whether a chosen source preview/crop is usable on a slide.
 
+Status: partially implemented. Preview and crop artifacts now include
+deterministic `quality` metadata with warnings for low visual density, low
+contrast, page-like source snapshots, and text-heavy crops. The next step is to
+make rich deck rendering consume those warnings as a quality gate.
+
 Checks:
 
 - Dimensions and aspect ratio fit the selected layout.

@@ -57,6 +57,7 @@ class ScreenshotArtifact(StrictModel):
     zoom: float = Field(strict=True, gt=0)
     sha256: str
     created_at: datetime
+    quality: dict[str, Any] | None = None
 
     @classmethod
     def from_file(
@@ -70,6 +71,7 @@ class ScreenshotArtifact(StrictModel):
         dpi: int,
         scale: float,
         zoom: float,
+        quality: dict[str, Any] | None = None,
     ) -> ScreenshotArtifact:
         resolved = path.resolve()
         digest = sha256_file(resolved)
@@ -85,10 +87,11 @@ class ScreenshotArtifact(StrictModel):
             zoom=zoom,
             sha256=digest,
             created_at=datetime.now(UTC),
+            quality=quality,
         )
 
     def to_structured_content(self) -> dict[str, Any]:
-        return {
+        content = {
             "artifact_id": self.artifact_id,
             "path": str(self.path),
             "target": self.target,
@@ -100,6 +103,9 @@ class ScreenshotArtifact(StrictModel):
             "sha256": self.sha256,
             "created_at": self.created_at.isoformat(),
         }
+        if self.quality is not None:
+            content["quality"] = self.quality
+        return content
 
 
 class RunManifest(StrictModel):
