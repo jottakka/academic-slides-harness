@@ -80,11 +80,14 @@ arcade mcp stdio --cwd .
 ```
 
 Se a configuração de cliente estiver ausente ou desatualizada, gere uma config
-Arcade compatível com VS Code:
+Arcade compatível com VS Code para a sua máquina local:
 
 ```powershell
 arcade configure vscode --transport stdio --entrypoint server.py --name academic-slides-harness --config compat\clients\vscode-academic-slides-harness.json
 ```
+
+Revise a config gerada antes de commitar. Alguns clientes escrevem paths locais
+absolutos; exemplos versionados devem continuar portáteis.
 
 Rode o smoke live de MCP stdio:
 

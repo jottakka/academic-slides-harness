@@ -129,6 +129,7 @@ MCP architecture.
 - [Guia de uso, pt-BR](docs/USAGE.pt-BR.md)
 - [Architecture and MCP tools, English](docs/ARCHITECTURE.en.md)
 - [Arquitetura e tools MCP, pt-BR](docs/ARCHITECTURE.pt-BR.md)
+- [Contributor guide](CONTRIBUTING.md)
 - [Public release checklist, English](docs/PUBLIC_RELEASE_CHECKLIST.en.md)
 - [Checklist de release publica, pt-BR](docs/PUBLIC_RELEASE_CHECKLIST.pt-BR.md)
 - [Foundation architecture notes](docs/design/foundation-architecture.md)
@@ -169,3 +170,6 @@ uv run academic-slides-harness doctor secrets --json
 `arcade_live` means a local stdio MCP runtime smoke. It does not require legacy
 local HTTP engine or worker ports unless you explicitly run Arcade diagnostics
 with `--check-http-endpoints`.
+
+For pull requests, follow [CONTRIBUTING.md](CONTRIBUTING.md) and the repository
+PR template. Keep generated artifacts out of tracked paths.

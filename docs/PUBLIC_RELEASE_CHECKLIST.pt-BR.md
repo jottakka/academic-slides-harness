@@ -11,12 +11,12 @@ Checado em 2026-05-11 contra a árvore atual do repositório.
 - [x] README público explica o projeto, status, quick start, uso MCP, comandos
   de validação, mapa de docs e política de artifacts gerados.
 - [ ] `LICENSE` presente.
-- [ ] `CONTRIBUTING.md` presente.
+- [x] `CONTRIBUTING.md` presente.
 - [ ] `SECURITY.md` presente.
 - [ ] `CODE_OF_CONDUCT.md` presente, se o projeto quiser expectativas de
   governança comunitária antes de colaboração pública.
 - [ ] Templates de issue presentes.
-- [ ] Template de pull request presente.
+- [x] Template de pull request presente.
 
 ## Segurança E Secrets
 
@@ -25,8 +25,8 @@ Checado em 2026-05-11 contra a árvore atual do repositório.
 - [x] Docs públicas usam placeholders para caminhos privados de executáveis.
 - [x] `uv run academic-slides-harness doctor secrets --json` passou no readiness
   pass de 2026-05-11. Rode novamente antes do release final.
-- [ ] Revisar `compat/clients/` para evitar paths locais ou credenciais antes de
-  publicar.
+- [x] `compat/clients/` usa comandos portáteis e não inclui paths locais de
+  usuário.
 
 ## Instalação E Uso
 
@@ -78,6 +78,7 @@ Readiness pass mais recente, 2026-05-11:
 - `uv run academic-slides-harness doctor arcade --json`: passou.
 - `uv run pytest -m arcade_live -q`: passou, 1 passed e 124 deselected.
 - `uv run academic-slides-harness doctor secrets --json`: passou.
+- Scan público de paths locais Windows de usuário: passou.
 
 ## Limitações Conhecidas Para Manter Públicas
 
@@ -94,5 +95,5 @@ Readiness pass mais recente, 2026-05-11:
 - [x] Docs de design atuais identificam o trabalho de deck visual rico.
 - [x] Plano de remediação visual documenta trabalho recente de qualidade e a
   necessidade do próximo validador.
-- [ ] Consolidar wording antigo do roadmap antes de um anúncio público maior, se
-  o repo precisar parecer mais polido que MVP readiness.
+- [x] Wording antigo do roadmap e headings duplicados de próximo trabalho foram
+  limpos no collaborator-readiness pass de 2026-05-11.

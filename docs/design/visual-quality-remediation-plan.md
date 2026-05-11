@@ -164,7 +164,7 @@ Chunk 4 evidence:
   - `runs/layout-upgrade-stdio-20260511002448/previews/deck_pdf-p2-144dpi.png`
   - `runs/layout-upgrade-stdio-20260511002448/previews/deck_pdf-p3-144dpi.png`
 
-## Next Chunk
+## Chunk 5 Evidence
 
 Chunk 5 evidence:
 
@@ -187,7 +187,7 @@ Chunk 5 evidence:
 - First deck iteration was rejected because the hero slide hid the citation and
   some crops still carried caption/text residue; the refined pass corrected both.
 
-## Next Chunk
+## Next Work
 
 Implement a deterministic rich-deck quality validator instead of relying on
 manual inspection notes. It should score/return typed failures for missing

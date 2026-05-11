@@ -23,7 +23,7 @@
 - `uv run ruff check .`
 - `uv run pytest -m "not ollama and not arcade_live" -q`
 - `uv run academic-slides-harness doctor arcade --json` before live MCP work.
-- `C:\Users\fjlim\.local\bin\arcade.exe configure vscode --transport stdio --entrypoint server.py --name academic-slides-harness --config compat\clients\vscode-academic-slides-harness.json` when the local client config is missing, stale, or MCP setup changed.
+- `arcade configure vscode --transport stdio --entrypoint server.py --name academic-slides-harness --config compat\clients\vscode-academic-slides-harness.json` when the local client config is missing, stale, or MCP setup changed.
 - `uv run pytest -m arcade_live -q` for every MCP-facing change. In this repo, `arcade_live` means local stdio MCP runtime smoke, not engine/worker HTTP endpoints.
 - `uv run pytest -m ollama -q` when local Ollama is expected to participate.
 - Use `--check-http-endpoints` or HTTP transport checks only when explicitly validating an HTTP setup.

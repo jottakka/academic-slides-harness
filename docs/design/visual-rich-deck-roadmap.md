@@ -1,13 +1,17 @@
 # Visual Rich Deck Roadmap
 
-## Problem
+## Original Problem
 
-The current deck path can ingest PDFs, render source previews, compile Beamer, and
-validate visual artifacts, but the produced deck is visually and didactically weak.
-The root cause is the contract: `render_beamer` accepts only `title` plus bullets
-and always emits a Madrid `itemize` frame. Agents can select evidence, but they
-cannot express layout, source-image placement, explanation structure, or visual
-hierarchy.
+The original deck path could ingest PDFs, render source previews, compile Beamer,
+and validate visual artifacts, but the produced deck was visually and
+didactically weak. The root cause was the v0 contract: `render_beamer` accepted
+only `title` plus bullets and emitted a simple `itemize` frame. Agents could
+select evidence, but they could not express layout, source-image placement,
+explanation structure, or visual hierarchy.
+
+Current status: tickets 1 through 6 are implemented. The active next gap is a
+deterministic rich-deck quality validator that can reject weak visual/didactic
+plans before a human reviewer has to inspect the result manually.
 
 ## Target Outcome
 
