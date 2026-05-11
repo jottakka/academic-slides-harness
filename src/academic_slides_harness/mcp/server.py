@@ -1,6 +1,5 @@
 import json
 import re
-import shutil
 import sys
 from pathlib import Path
 from typing import Annotated, Any
@@ -41,6 +40,7 @@ from academic_slides_harness.visualize.preview import (
 from academic_slides_harness.visualize.preview import (
     render_zoom_crop as render_crop,
 )
+from academic_slides_harness.visualize.sanitize import VisualAssetError, sanitize_visual_asset
 
 MCP_TOOL_NAMES = frozenset(
     {
@@ -886,36 +886,22 @@ def _parse_rich_block(
 
 
 def _copy_visual_asset(source_path: Path, *, assets_dir: Path) -> tuple[Path, dict[str, Any]]:
-    resolved_source = source_path.resolve()
-    if not resolved_source.is_file():
-        raise RichSlideParseError(
-            kind="missing_visual_artifact",
-            message=f"Visual artifact not found: {source_path}",
-            details={"artifact_path": str(source_path)},
-        )
-    if resolved_source.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
-        raise RichSlideParseError(
-            kind="unsupported_visual_artifact",
-            message=f"Unsupported visual artifact type: {resolved_source.suffix}",
-            details={"artifact_path": str(resolved_source)},
-        )
-    digest = sha256_file(resolved_source)
-    safe_stem = _slug(resolved_source.stem) or "visual"
-    deck_asset_path = assets_dir / f"{digest[:12]}-{safe_stem}{resolved_source.suffix.lower()}"
+    safe_stem = _slug(source_path.stem) or "visual"
     try:
-        assets_dir.mkdir(parents=True, exist_ok=True)
-        if not deck_asset_path.exists():
-            shutil.copy2(resolved_source, deck_asset_path)
-    except OSError as exc:
+        sanitized = sanitize_visual_asset(
+            source_path=source_path,
+            output_dir=assets_dir,
+            filename_stem=safe_stem,
+        )
+    except VisualAssetError as exc:
         raise RichSlideParseError(
-            kind="asset_copy_failed",
-            message=str(exc),
-            details={"source_path": str(resolved_source), "deck_path": str(deck_asset_path)},
+            kind=exc.kind,
+            message=exc.message,
+            details=exc.details,
         ) from exc
-    return Path("assets") / deck_asset_path.name, {
-        "source_path": str(resolved_source),
-        "deck_path": str(deck_asset_path),
-        "sha256": digest,
+    return Path("assets") / sanitized.path.name, {
+        **sanitized.to_structured_content(),
+        "deck_path": str(sanitized.path),
     }
 
 

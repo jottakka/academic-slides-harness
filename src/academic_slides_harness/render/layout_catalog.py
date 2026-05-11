@@ -207,7 +207,9 @@ def rich_slide_schema_markdown() -> str:
             "",
             "Rules:",
             "- `hero_visual` and `figure_explanation` require one `visual` block.",
-            "- `visual.artifact_path` must point to an existing PNG, JPG, or JPEG artifact.",
+            "- `visual.artifact_path` must point to an existing readable image artifact; "
+            "PNG and JPEG pass through when safe, and other readable formats are "
+            "normalized to PNG.",
             "- Claims should cite either a source page or a visual artifact used on the slide.",
             "- Keep text short enough for the selected layout limits.",
             "- Text over the layout limits returns typed `text_overflow_risk` before "

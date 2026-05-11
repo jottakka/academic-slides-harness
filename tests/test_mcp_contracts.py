@@ -402,6 +402,10 @@ def test_render_rich_beamer_embeds_visual_artifact_without_itemize(tmp_path: Pat
     assert result.structured_content["slide_count"] == 1
     assert result.structured_content["assets"][0]["source_path"] == str(visual_path.resolve())
     assert Path(result.structured_content["assets"][0]["deck_path"]).is_file()
+    assert result.structured_content["assets"][0]["width"] == 24
+    assert result.structured_content["assets"][0]["height"] == 16
+    assert result.structured_content["assets"][0]["format"] == "PNG"
+    assert result.structured_content["assets"][0]["converted"] is False
     assert "assets/" in tex
 
 
@@ -425,6 +429,63 @@ def test_render_rich_beamer_returns_typed_error_for_missing_visual(
 
     assert result.ok is False
     assert result.structured_content["error"]["kind"] == "missing_visual_artifact"
+
+
+def test_render_rich_beamer_returns_typed_error_for_corrupt_visual(
+    tmp_path: Path,
+) -> None:
+    visual_path = tmp_path / "broken.png"
+    visual_path.write_text("not an image", encoding="utf-8")
+
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Broken Evidence",
+                "layout": "figure_explanation",
+                "blocks": [
+                    {"type": "visual", "artifact_path": str(visual_path)},
+                    {"type": "claim", "text": "This should not render."},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    assert result.structured_content["error"]["kind"] == "invalid_visual_artifact"
+    assert not (tmp_path / "rendered" / "assets").exists()
+
+
+def test_render_rich_beamer_returns_typed_error_for_tiny_visual(
+    tmp_path: Path,
+) -> None:
+    visual_path = tmp_path / "tiny.png"
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 8, 8), False)
+    pixmap.clear_with(200)
+    pixmap.save(visual_path)
+
+    result = render_rich_beamer(
+        output_dir=str(tmp_path / "rendered"),
+        title="Visual Deck",
+        slides=[
+            {
+                "title": "Tiny Evidence",
+                "layout": "figure_explanation",
+                "blocks": [
+                    {"type": "visual", "artifact_path": str(visual_path)},
+                    {"type": "claim", "text": "This should not render."},
+                ],
+            }
+        ],
+    )
+
+    assert result.ok is False
+    error = result.structured_content["error"]
+    assert error["kind"] == "image_too_small"
+    assert error["details"]["width"] == 8
+    assert error["details"]["height"] == 8
+    assert not (tmp_path / "rendered" / "assets").exists()
 
 
 def test_render_rich_beamer_requires_visual_block_for_figure_layout(

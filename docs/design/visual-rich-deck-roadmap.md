@@ -193,6 +193,8 @@ Implemented contract:
 Goal: make visual assets safe and predictable before `RenderRichBeamer` copies
 them into the deck.
 
+Status: implemented as an internal sanitizer used by `RenderRichBeamer`.
+
 Checks:
 
 - Input path exists and is a readable image.
@@ -208,6 +210,27 @@ Acceptance criteria:
 - Corrupt images return typed `invalid_visual_artifact`.
 - Tiny images return typed `image_too_small`.
 - The rich renderer uses sanitized metadata instead of blindly copying images.
+
+Implemented contract:
+
+- Internal module: `src/academic_slides_harness/visualize/sanitize.py`.
+- `RenderRichBeamer` sanitizes visual blocks before assets are copied into
+  `output_dir/assets`.
+- The `assets` response keeps `source_path`, `deck_path`, and `sha256`, and now
+  adds `path`, `width`, `height`, `format`, `mode`, `source_sha256`, and
+  `converted`.
+- Valid PNG/JPEG files pass through when their mode is already safe. Other
+  readable image formats are normalized to PNG.
+- Corrupt or unreadable images return typed `invalid_visual_artifact`.
+- Images smaller than 16x16 return typed `image_too_small`.
+
+Validation:
+
+- `uv run pytest tests/test_visualize.py tests/test_mcp_contracts.py -q`
+- `uv run pytest tests/test_render.py tests/test_mcp_contracts.py tests/test_mcp_stdio.py -q`
+- `uv run pytest -m "not ollama and not arcade_live" -q`
+- `uv run academic-slides-harness doctor arcade --json`
+- `uv run pytest -m arcade_live -q`
 
 ## Ticket 6: Image Legibility And Crop Quality
 
