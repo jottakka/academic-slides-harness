@@ -35,8 +35,7 @@ Experimental or still maturing:
 Planned, not implemented:
 
 - Video ingestion.
-- Full public project governance files such as `LICENSE`, `CONTRIBUTING.md`, and
-  `SECURITY.md`.
+- A public security policy (`SECURITY.md`).
 
 ## Quick Start
 
@@ -177,3 +176,10 @@ with `--check-http-endpoints`.
 
 For pull requests, follow [CONTRIBUTING.md](CONTRIBUTING.md) and the repository
 PR template. Keep generated artifacts out of tracked paths.
+
+## License
+
+Original project code is available under the [MIT License](LICENSE).
+Third-party dependencies and assets retain their own licenses. The checked-in
+source PDF is not relicensed by this project's MIT license; its redistribution
+review remains pending as described in [source fixture notes](tests/fixtures/sources/README.md).
