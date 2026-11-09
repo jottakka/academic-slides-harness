@@ -327,7 +327,6 @@ def _resolve_arcade_cli(arcade_cli_path: str | None) -> Path | None:
 def _default_secret_paths() -> list[Path]:
     repo_root = Path(__file__).resolve().parents[2]
     return [
-        repo_root / "AGENTS.md",
         repo_root / "README.md",
         repo_root / "compat",
         repo_root / "docs",

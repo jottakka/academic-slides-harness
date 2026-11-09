@@ -136,7 +136,6 @@ MCP architecture.
 - [Public release checklist, English](docs/PUBLIC_RELEASE_CHECKLIST.en.md)
 - [Checklist de release publica, pt-BR](docs/PUBLIC_RELEASE_CHECKLIST.pt-BR.md)
 - [Foundation architecture notes](docs/design/foundation-architecture.md)
-- [Visual rich deck roadmap](docs/design/visual-rich-deck-roadmap.md)
 - [Visual quality remediation plan](docs/design/visual-quality-remediation-plan.md)
 - [Real source fixture notes](tests/fixtures/sources/README.md)
 
